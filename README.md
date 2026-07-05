@@ -18,10 +18,14 @@ the first synchronized sample:
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[datasets,dev]"
 .\.venv\Scripts\python.exe scripts\preview_nuscenes.py
+.\.venv\Scripts\python.exe scripts\render_nuscenes_video.py --frames 40
 ```
 
 The `NuScenesSource` interface independently switches camera, LiDAR, and radar
 inputs and transforms point measurements into the ego-vehicle coordinate frame.
+It also converts annotated 3D objects from global coordinates to the current ego
+frame, including metric size, heading, category, and velocity. The preview draws
+all modalities together on a 120 m by 120 m metric BEV.
 
 ## Current MVP
 
