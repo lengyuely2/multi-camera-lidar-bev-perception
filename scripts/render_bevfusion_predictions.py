@@ -33,6 +33,7 @@ def main() -> None:
         radar_ego={},
         objects=tuple(objects),
         calibrations=frame.calibrations,
+        ego_to_global=frame.ego_to_global,
     )
     image = MetricBEVRenderer().render(predicted_frame)
     cv2.putText(image, "AI PREDICTIONS (not ground truth)", (12, 54),

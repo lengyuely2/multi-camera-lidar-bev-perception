@@ -5,6 +5,7 @@ from parking_bev.nuscenes_source import CAMERA_CHANNELS, Object3D, RADAR_CHANNEL
 from parking_bev.evaluation import evaluate_detections
 from parking_bev.predictions import Prediction3D, detection_class
 from parking_bev.voxelize import HardVoxelizer
+from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
 
 
 def test_nuscenes_sensor_layout():
@@ -76,3 +77,24 @@ def test_detection_evaluation_matches_by_class_and_distance():
     assert overall.false_positives == 0
     assert overall.false_negatives == 0
     assert overall.mean_center_error_m == 0.5
+
+
+def test_timestamp_tracker_keeps_id_and_uses_real_dt():
+    tracker = TimestampAwareTracker(association_distance_m=3.0)
+    first = TrackMeasurement("car", 0.9, np.asarray([0, 0, 0], np.float32),
+                             np.asarray([1, 0], np.float32), np.asarray([2, 4, 1.5], np.float32), 0.0)
+    first_tracks = tracker.update(10.0, [first])
+    second = TrackMeasurement("car", 0.9, np.asarray([2, 0, 0], np.float32),
+                              np.asarray([1, 0], np.float32), np.asarray([2, 4, 1.5], np.float32), 0.0)
+    second_tracks = tracker.update(12.0, [second])
+    assert first_tracks[0].track_id == second_tracks[0].track_id
+    assert second_tracks[0].hits == 2
+    assert second_tracks[0].position_global[0] > 1.5
+
+
+def test_timestamp_tracker_expires_tracks_by_elapsed_time():
+    tracker = TimestampAwareTracker(max_missed_seconds=1.0)
+    measurement = TrackMeasurement("car", 0.9, np.asarray([0, 0, 0], np.float32),
+                                   np.zeros(2, np.float32), np.asarray([2, 4, 1.5], np.float32), 0.0)
+    assert len(tracker.update(1.0, [measurement])) == 1
+    assert len(tracker.update(2.1, [])) == 0

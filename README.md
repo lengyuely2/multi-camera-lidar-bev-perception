@@ -67,6 +67,22 @@ produces aggregate metrics plus a ground-truth/prediction comparison video. The
 diagnostic uses nuScenes class-specific evaluation ranges (30 m for barriers and
 traffic cones, 40 m for pedestrians and two-wheelers, and 50 m for vehicles).
 
+## Temporal tracking
+
+`track_bevfusion_scene.py` converts per-frame detections from ego coordinates to
+the global frame, compensating for ego motion before association. A
+constant-velocity Kalman filter uses the real sample timestamps rather than an
+assumed fixed frame interval, while class-aware Hungarian matching assigns stable
+track IDs. Missing detections are propagated for at most 1.2 seconds.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\track_bevfusion_scene.py
+```
+
+The output video displays stable IDs, recent trajectories, and a `P` suffix when
+a track is temporarily predicted through a missed detection. Radar measurements
+are not yet used by this tracker; adding radar velocity is a later fusion step.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

@@ -38,13 +38,13 @@ class MetricBEVRenderer:
         rotation = np.asarray([[cosine, -sine], [sine, cosine]], dtype=np.float32)
         return local @ rotation.T + obj.center_ego[:2]
 
-    def render(self, frame: NuScenesFrame) -> np.ndarray:
+    def render(self, frame: NuScenesFrame, draw_labels: bool = True) -> np.ndarray:
         image = np.full((self.height, self.width, 3), 16, np.uint8)
         self._draw_grid(image)
         self._draw_lidar(image, frame.lidar_ego)
         self._draw_radar(image, frame.radar_ego)
         for obj in frame.objects:
-            self._draw_object(image, obj)
+            self._draw_object(image, obj, draw_labels)
         self._draw_ego(image)
         cv2.putText(image, f"Objects: {len(frame.objects)}", (12, 26),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (245, 245, 245), 2, cv2.LINE_AA)
@@ -80,7 +80,7 @@ class MetricBEVRenderer:
                 end = tuple(self.ego_to_pixel(np.asarray([[x, y]]) + velocity)[0].astype(int))
                 cv2.arrowedLine(image, start, end, (30, 70, 255), 1, tipLength=0.3)
 
-    def _draw_object(self, image: np.ndarray, obj: Object3D) -> None:
+    def _draw_object(self, image: np.ndarray, obj: Object3D, draw_label: bool = True) -> None:
         center = obj.center_ego[:2].reshape(1, 2)
         if not self._inside(center)[0]:
             return
@@ -93,7 +93,7 @@ class MetricBEVRenderer:
         velocity_tip = self.ego_to_pixel(center + velocity)[0].astype(int)
         if np.linalg.norm(obj.velocity_ego) > 0.2:
             cv2.arrowedLine(image, tuple(center_pixel), tuple(velocity_tip), color, 2, tipLength=0.25)
-        if not obj.category.startswith("movable_object"):
+        if draw_label and not obj.category.startswith("movable_object"):
             label = self._short_category(obj.category)
             cv2.putText(image, label, tuple(center_pixel + [4, -4]), cv2.FONT_HERSHEY_SIMPLEX,
                         0.36, color, 1, cv2.LINE_AA)

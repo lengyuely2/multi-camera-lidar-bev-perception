@@ -49,6 +49,7 @@ class NuScenesFrame:
     radar_ego: dict[str, np.ndarray]
     objects: tuple[Object3D, ...]
     calibrations: dict[str, SensorCalibration]
+    ego_to_global: np.ndarray
 
 
 class NuScenesSource:
@@ -98,6 +99,7 @@ class NuScenesSource:
         radars = self._load_radars(sample) if self.radar_enabled else {}
         objects = self._load_annotations(sample) if self.annotations_enabled else ()
         calibrations = self._load_calibrations(sample)
+        ego_to_global = self._load_ego_to_global(sample)
         return NuScenesFrame(
             token=sample["token"],
             timestamp_us=int(sample["timestamp"]),
@@ -106,7 +108,18 @@ class NuScenesSource:
             radar_ego=radars,
             objects=objects,
             calibrations=calibrations,
+            ego_to_global=ego_to_global,
         )
+
+    def _load_ego_to_global(self, sample: dict) -> np.ndarray:
+        from pyquaternion import Quaternion
+
+        lidar_data = self.nusc.get("sample_data", sample["data"]["LIDAR_TOP"])
+        ego_pose = self.nusc.get("ego_pose", lidar_data["ego_pose_token"])
+        transform = np.eye(4, dtype=np.float32)
+        transform[:3, :3] = Quaternion(ego_pose["rotation"]).rotation_matrix
+        transform[:3, 3] = np.asarray(ego_pose["translation"], dtype=np.float32)
+        return transform
 
     def _load_cameras(self, sample: dict) -> dict[str, np.ndarray]:
         frames: dict[str, np.ndarray] = {}
