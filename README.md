@@ -27,6 +27,29 @@ It also converts annotated 3D objects from global coordinates to the current ego
 frame, including metric size, heading, category, and velocity. The preview draws
 all modalities together on a 120 m by 120 m metric BEV.
 
+## Pretrained BEVFusion inference
+
+The local RTX 4070 WSL2 environment uses PyTorch 2.1.2 CUDA 12.1,
+MMDetection3D 1.4.0, and the official nuScenes camera+LiDAR BEVFusion checkpoint.
+Validate the model inputs before inference:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_bevfusion_inputs.py
+```
+
+The reference voxelizer uses the checkpoint's fixed 108 m square range,
+`0.075 x 0.075 x 0.2 m` voxels, and at most 10 points per voxel. The WSL inference
+script exports predictions to `output/bevfusion_predictions.json`; render them
+without the optional Open3D dependency using:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_bevfusion_predictions.py
+```
+
+The resulting boxes are model predictions, not dataset ground truth. Prediction
+centres, headings, and velocities are transformed from the raw LiDAR frame into
+the ego-vehicle frame before BEV rendering.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

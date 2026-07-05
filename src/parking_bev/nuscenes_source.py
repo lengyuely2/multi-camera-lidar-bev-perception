@@ -35,6 +35,12 @@ class Object3D:
 
 
 @dataclass(frozen=True)
+class SensorCalibration:
+    sensor_to_ego: np.ndarray
+    intrinsic: np.ndarray | None
+
+
+@dataclass(frozen=True)
 class NuScenesFrame:
     token: str
     timestamp_us: int
@@ -42,6 +48,7 @@ class NuScenesFrame:
     lidar_ego: np.ndarray
     radar_ego: dict[str, np.ndarray]
     objects: tuple[Object3D, ...]
+    calibrations: dict[str, SensorCalibration]
 
 
 class NuScenesSource:
@@ -83,6 +90,7 @@ class NuScenesSource:
         lidar = self._load_lidar(sample) if self.lidar_enabled else np.empty((0, 4), np.float32)
         radars = self._load_radars(sample) if self.radar_enabled else {}
         objects = self._load_annotations(sample) if self.annotations_enabled else ()
+        calibrations = self._load_calibrations(sample)
         return True, NuScenesFrame(
             token=sample["token"],
             timestamp_us=int(sample["timestamp"]),
@@ -90,6 +98,7 @@ class NuScenesSource:
             lidar_ego=lidar,
             radar_ego=radars,
             objects=objects,
+            calibrations=calibrations,
         )
 
     def _load_cameras(self, sample: dict) -> dict[str, np.ndarray]:
@@ -103,12 +112,11 @@ class NuScenesSource:
         return frames
 
     def _load_lidar(self, sample: dict) -> np.ndarray:
-        from nuscenes.utils.data_classes import LidarPointCloud
-
         sample_data = self.nusc.get("sample_data", sample["data"]["LIDAR_TOP"])
-        cloud = LidarPointCloud.from_file(str(Path(self.nusc.dataroot) / sample_data["filename"]))
-        xyz = self._sensor_xyz_to_ego(cloud.points[:3].T, sample_data)
-        return np.column_stack((xyz, cloud.points[3])).astype(np.float32)
+        raw = np.fromfile(Path(self.nusc.dataroot) / sample_data["filename"], dtype=np.float32).reshape(-1, 5)
+        xyz = self._sensor_xyz_to_ego(raw[:, :3], sample_data)
+        time_lag = np.zeros((len(raw), 1), dtype=np.float32)
+        return np.column_stack((xyz, raw[:, 3], time_lag)).astype(np.float32)
 
     def _load_radars(self, sample: dict) -> dict[str, np.ndarray]:
         from nuscenes.utils.data_classes import RadarPointCloud
@@ -152,6 +160,21 @@ class NuScenesSource:
                 velocity_ego=velocity_ego.astype(np.float32),
             ))
         return tuple(objects)
+
+    def _load_calibrations(self, sample: dict) -> dict[str, SensorCalibration]:
+        output: dict[str, SensorCalibration] = {}
+        for channel in (*CAMERA_CHANNELS, "LIDAR_TOP", *RADAR_CHANNELS):
+            sample_data = self.nusc.get("sample_data", sample["data"][channel])
+            calibrated = self.nusc.get("calibrated_sensor", sample_data["calibrated_sensor_token"])
+            rotation, translation = self._rotation_translation(sample_data)
+            transform = np.eye(4, dtype=np.float32)
+            transform[:3, :3] = rotation
+            transform[:3, 3] = translation
+            camera_intrinsic = calibrated.get("camera_intrinsic", [])
+            intrinsic = (np.asarray(camera_intrinsic, dtype=np.float32)
+                         if len(camera_intrinsic) else None)
+            output[channel] = SensorCalibration(transform, intrinsic)
+        return output
 
     def _rotation_translation(self, sample_data: dict) -> tuple[np.ndarray, np.ndarray]:
         from pyquaternion import Quaternion

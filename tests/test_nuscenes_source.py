@@ -2,6 +2,7 @@ import numpy as np
 
 from parking_bev.metric_bev import MetricBEVRenderer
 from parking_bev.nuscenes_source import CAMERA_CHANNELS, Object3D, RADAR_CHANNELS
+from parking_bev.voxelize import HardVoxelizer
 
 
 def test_nuscenes_sensor_layout():
@@ -34,3 +35,23 @@ def test_object_box_uses_length_along_forward_axis():
 def test_velocity_visualization_is_bounded():
     displacement = MetricBEVRenderer._limited_velocity(np.asarray([100, 0], np.float32))
     np.testing.assert_allclose(displacement, [[6, 0]])
+
+
+def test_hard_voxelizer_filters_and_caps_points():
+    points = np.asarray([
+        [0.1, 0.1, 0.1, 1, 0],
+        [0.2, 0.1, 0.1, 2, 0],
+        [1.1, 0.1, 0.1, 3, 0],
+        [9.0, 0.1, 0.1, 4, 0],
+    ], np.float32)
+    voxelizer = HardVoxelizer(
+        voxel_size=(1, 1, 1),
+        point_cloud_range=(0, 0, 0, 2, 2, 2),
+        max_points_per_voxel=1,
+        max_voxels=10,
+    )
+    result = voxelizer(points)
+    assert result.input_points == 4
+    assert result.retained_points == 2
+    assert result.voxels.shape == (2, 1, 5)
+    np.testing.assert_array_equal(result.coordinates_zyx, [[0, 0, 0], [0, 0, 1]])
