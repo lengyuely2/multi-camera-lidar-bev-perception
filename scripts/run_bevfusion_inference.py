@@ -39,8 +39,6 @@ def main() -> None:
     classes = model.dataset_meta["classes"]
     predictions = []
     for box, score, label in zip(boxes, scores, labels):
-        if float(score) < args.score_threshold:
-            continue
         predictions.append({
             "class": classes[int(label)],
             "score": float(score),
@@ -52,7 +50,8 @@ def main() -> None:
         "score_threshold": args.score_threshold,
         "inference_seconds": elapsed,
         "peak_gpu_memory_gib": torch.cuda.max_memory_allocated() / 1024**3,
-        "prediction_count": len(predictions),
+        "prediction_count": sum(item["score"] >= args.score_threshold for item in predictions),
+        "stored_prediction_count": len(predictions),
         "predictions": predictions,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

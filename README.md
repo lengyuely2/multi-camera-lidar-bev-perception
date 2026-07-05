@@ -50,6 +50,17 @@ The resulting boxes are model predictions, not dataset ground truth. Prediction
 centres, headings, and velocities are transformed from the raw LiDAR frame into
 the ego-vehicle frame before BEV rendering.
 
+Compare one predicted frame with nuScenes ground truth using class-aware,
+one-to-one centre-distance matching:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_bevfusion.py
+```
+
+This writes `output/bevfusion_evaluation.json` and a side-by-side BEV image. It
+also sweeps confidence thresholds from 0.1 to 0.9. These figures are a pipeline
+diagnostic for one frame, not the official nuScenes validation mAP/NDS score.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

@@ -2,6 +2,8 @@ import numpy as np
 
 from parking_bev.metric_bev import MetricBEVRenderer
 from parking_bev.nuscenes_source import CAMERA_CHANNELS, Object3D, RADAR_CHANNELS
+from parking_bev.evaluation import evaluate_detections
+from parking_bev.predictions import Prediction3D, detection_class
 from parking_bev.voxelize import HardVoxelizer
 
 
@@ -55,3 +57,22 @@ def test_hard_voxelizer_filters_and_caps_points():
     assert result.retained_points == 2
     assert result.voxels.shape == (2, 1, 5)
     np.testing.assert_array_equal(result.coordinates_zyx, [[0, 0, 0], [0, 0, 1]])
+
+
+def test_nuscenes_categories_map_to_detection_classes():
+    assert detection_class("human.pedestrian.adult") == "pedestrian"
+    assert detection_class("vehicle.bus.rigid") == "bus"
+    assert detection_class("movable_object.pushable_pullable") is None
+
+
+def test_detection_evaluation_matches_by_class_and_distance():
+    expected = Object3D("gt", "vehicle.car", np.asarray([5, 0, 0], np.float32),
+                        np.asarray([2, 4, 1.5], np.float32), 0.0, np.zeros(2, np.float32))
+    predicted_object = Object3D("pred", "vehicle.car", np.asarray([5.5, 0, 0], np.float32),
+                                np.asarray([2, 4, 1.5], np.float32), 0.1, np.zeros(2, np.float32))
+    prediction = Prediction3D(predicted_object, "car", 0.9)
+    overall, _ = evaluate_detections([prediction], [expected], center_threshold_m=2.0)
+    assert overall.true_positives == 1
+    assert overall.false_positives == 0
+    assert overall.false_negatives == 0
+    assert overall.mean_center_error_m == 0.5
