@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -65,10 +66,29 @@ class VideoCameraRig:
             capture.release()
 
 
-def build_camera_rig(config: Mapping) -> SyntheticCameraRig | VideoCameraRig:
+class StaticImageCameraRig:
+    """Repeat one synchronized four-camera sample for pipeline inspection."""
+
+    def __init__(self, sources: Mapping[str, str]) -> None:
+        self.frames = {name: cv2.imread(str(sources[name])) for name in CAMERA_NAMES}
+        failed = [name for name, frame in self.frames.items() if frame is None]
+        if failed:
+            raise RuntimeError(f"Could not read camera images: {failed}")
+
+    def read(self) -> tuple[bool, dict[str, np.ndarray]]:
+        return True, {name: frame.copy() for name, frame in self.frames.items()}
+
+    def release(self) -> None:
+        return None
+
+
+def build_camera_rig(config: Mapping) -> SyntheticCameraRig | StaticImageCameraRig | VideoCameraRig:
     sources = config["sources"]
     if all(str(source).lower() == "synthetic" for source in sources.values()):
         return SyntheticCameraRig(int(config["frame_width"]), int(config["frame_height"]))
+    image_suffixes = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+    if all(Path(str(source)).suffix.lower() in image_suffixes for source in sources.values()):
+        return StaticImageCameraRig(sources)
     return VideoCameraRig(sources)
 
 
@@ -76,4 +96,3 @@ def _coerce_source(source: str | int) -> str | int:
     if isinstance(source, str) and source.isdigit():
         return int(source)
     return source
-

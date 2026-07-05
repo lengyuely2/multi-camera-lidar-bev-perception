@@ -47,6 +47,17 @@ parking-bev --config configs/demo.yaml --max-frames 120 --no-display
 python -m pytest
 ```
 
+After cloning the public FB-SSEM repository into
+`data/external/FB-SSEM-dataset`, inspect its bundled four-camera sample with:
+
+```powershell
+parking-bev --config configs/fb_ssem_sample.yaml --max-frames 30 --no-display
+```
+
+The projection quadrilaterals in this sample configuration are placeholders;
+they validate data ingestion only and must not be interpreted as calibrated,
+metric BEV geometry.
+
 ## LiDAR switch
 
 Edit `configs/demo.yaml`:
@@ -78,4 +89,3 @@ zero arrays and the fusion layer falls back to RGB BEV.
 
 This repository is an early research prototype and is not a vehicle safety or
 control system.
-
