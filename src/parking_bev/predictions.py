@@ -13,6 +13,18 @@ DETECTION_CLASSES = (
     "car", "truck", "construction_vehicle", "bus", "trailer", "barrier",
     "motorcycle", "bicycle", "pedestrian", "traffic_cone",
 )
+DETECTION_RANGES_M = {
+    "car": 50.0,
+    "truck": 50.0,
+    "construction_vehicle": 50.0,
+    "bus": 50.0,
+    "trailer": 50.0,
+    "barrier": 30.0,
+    "motorcycle": 40.0,
+    "bicycle": 40.0,
+    "pedestrian": 40.0,
+    "traffic_cone": 30.0,
+}
 
 
 @dataclass(frozen=True)
@@ -50,6 +62,10 @@ def category_for_detection_class(class_name: str) -> str:
     return f"vehicle.{class_name}"
 
 
+def within_detection_range(class_name: str, center_ego: np.ndarray) -> bool:
+    return float(np.linalg.norm(np.asarray(center_ego)[:2])) <= DETECTION_RANGES_M[class_name]
+
+
 def load_bevfusion_predictions(
     path: str | Path,
     lidar_to_ego: np.ndarray,
@@ -57,13 +73,21 @@ def load_bevfusion_predictions(
 ) -> list[Prediction3D]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     threshold = payload.get("score_threshold", 0.0) if score_threshold is None else score_threshold
+    return bevfusion_predictions_from_records(payload["predictions"], lidar_to_ego, threshold)
+
+
+def bevfusion_predictions_from_records(
+    records: list[dict],
+    lidar_to_ego: np.ndarray,
+    score_threshold: float = 0.2,
+) -> list[Prediction3D]:
     rotation = np.asarray(lidar_to_ego[:3, :3], dtype=np.float32)
     translation = np.asarray(lidar_to_ego[:3, 3], dtype=np.float32)
 
     output: list[Prediction3D] = []
-    for index, prediction in enumerate(payload["predictions"]):
+    for index, prediction in enumerate(records):
         score = float(prediction["score"])
-        if score < threshold:
+        if score < score_threshold:
             continue
         box = np.asarray(prediction["box_lidar"], dtype=np.float32)
         center_ego = rotation @ box[:3] + translation

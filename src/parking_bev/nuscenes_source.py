@@ -86,12 +86,19 @@ class NuScenesSource:
         sample = self.nusc.sample[self._index]
         self._index += 1
 
+        return True, self._build_frame(sample)
+
+    def read_token(self, token: str) -> NuScenesFrame:
+        """Read one keyframe by nuScenes sample token without changing iteration state."""
+        return self._build_frame(self.nusc.get("sample", token))
+
+    def _build_frame(self, sample: dict) -> NuScenesFrame:
         cameras = self._load_cameras(sample) if self.cameras_enabled else {}
-        lidar = self._load_lidar(sample) if self.lidar_enabled else np.empty((0, 4), np.float32)
+        lidar = self._load_lidar(sample) if self.lidar_enabled else np.empty((0, 5), np.float32)
         radars = self._load_radars(sample) if self.radar_enabled else {}
         objects = self._load_annotations(sample) if self.annotations_enabled else ()
         calibrations = self._load_calibrations(sample)
-        return True, NuScenesFrame(
+        return NuScenesFrame(
             token=sample["token"],
             timestamp_us=int(sample["timestamp"]),
             cameras=cameras,

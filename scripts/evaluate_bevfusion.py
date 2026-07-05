@@ -11,7 +11,7 @@ import numpy as np
 from parking_bev.evaluation import evaluate_detections
 from parking_bev.metric_bev import MetricBEVRenderer
 from parking_bev.nuscenes_source import NuScenesSource
-from parking_bev.predictions import detection_class, load_bevfusion_predictions
+from parking_bev.predictions import detection_class, load_bevfusion_predictions, within_detection_range
 
 
 def main() -> None:
@@ -30,17 +30,21 @@ def main() -> None:
         raise RuntimeError("No nuScenes sample found")
 
     lidar_to_ego = frame.calibrations["LIDAR_TOP"].sensor_to_ego
-    predictions = load_bevfusion_predictions(args.predictions, lidar_to_ego, args.score)
+    predictions = [
+        item for item in load_bevfusion_predictions(args.predictions, lidar_to_ego, args.score)
+        if within_detection_range(item.class_name, item.object.center_ego)
+    ]
     ground_truth = [
         obj for obj in frame.objects
-        if detection_class(obj.category) is not None
-        and -54 <= obj.center_ego[0] < 54
-        and -54 <= obj.center_ego[1] < 54
-        and -5 <= obj.center_ego[2] < 3
+        if (class_name := detection_class(obj.category)) is not None
+        and within_detection_range(class_name, obj.center_ego)
     ]
     overall, per_class = evaluate_detections(predictions, ground_truth, args.distance)
     threshold_curve = []
-    all_predictions = load_bevfusion_predictions(args.predictions, lidar_to_ego, 0.0)
+    all_predictions = [
+        item for item in load_bevfusion_predictions(args.predictions, lidar_to_ego, 0.0)
+        if within_detection_range(item.class_name, item.object.center_ego)
+    ]
     for threshold in np.arange(0.1, 0.91, 0.1):
         selected = [item for item in all_predictions if item.score >= threshold]
         threshold_metrics, _ = evaluate_detections(selected, ground_truth, args.distance)

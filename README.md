@@ -61,6 +61,12 @@ This writes `output/bevfusion_evaluation.json` and a side-by-side BEV image. It
 also sweeps confidence thresholds from 0.1 to 0.9. These figures are a pipeline
 diagnostic for one frame, not the official nuScenes validation mAP/NDS score.
 
+For a complete approximately 20-second scene, `run_bevfusion_scene.py` performs
+camera+LiDAR inference once per keyframe and `evaluate_bevfusion_scene.py`
+produces aggregate metrics plus a ground-truth/prediction comparison video. The
+diagnostic uses nuScenes class-specific evaluation ranges (30 m for barriers and
+traffic cones, 40 m for pedestrians and two-wheelers, and 50 m for vehicles).
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.
