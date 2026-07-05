@@ -1,11 +1,27 @@
-# Multi-Camera and LiDAR BEV Perception System for Autonomous Parking
+# Multi-Camera, LiDAR, and Radar BEV Perception for Autonomous Driving
 
 面向自动泊车的多相机与激光雷达 BEV 感知融合系统。
 
-The project builds a metric Bird's-Eye View from four surround cameras and an
-optional LiDAR stream. The first milestone focuses on deterministic geometry,
-sensor switching, visualization, and testable interfaces before adding object
-and parking-slot recognition.
+The project builds metric Bird's-Eye View representations from surround cameras,
+LiDAR, and radar. Parking remains one supported scenario, but the system targets
+general urban driving perception, including vehicles, pedestrians, cyclists,
+drivable space, distance, velocity, and tracking.
+
+## nuScenes mini
+
+The official nuScenes mini split provides 6 cameras, 1 LiDAR, 5 radars, sensor
+calibration, ego poses, maps, and 3D object annotations. After extracting it to
+`data/external/nuscenes`, install the isolated dataset environment and inspect
+the first synchronized sample:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[datasets,dev]"
+.\.venv\Scripts\python.exe scripts\preview_nuscenes.py
+```
+
+The `NuScenesSource` interface independently switches camera, LiDAR, and radar
+inputs and transforms point measurements into the ego-vehicle coordinate frame.
 
 ## Current MVP
 
