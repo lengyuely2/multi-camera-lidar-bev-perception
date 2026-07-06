@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+from .predictions import Prediction3D
+
 
 @dataclass(frozen=True)
 class TrackMeasurement:
@@ -172,3 +174,24 @@ class TimestampAwareTracker:
             track.state[:2].copy(), track.state[2:].copy(), track.size_wlh.copy(),
             track.yaw_global, track.hits, track.missed, np.asarray(track.history).copy(),
         )
+
+
+def prediction_to_global_measurement(
+    prediction: Prediction3D,
+    ego_to_global: np.ndarray,
+) -> TrackMeasurement:
+    rotation = ego_to_global[:3, :3]
+    translation = ego_to_global[:3, 3]
+    center_global = rotation @ prediction.object.center_ego + translation
+    velocity_global = (rotation @ np.r_[prediction.object.velocity_ego, 0.0])[:2]
+    heading_global = rotation @ np.asarray([
+        np.cos(prediction.object.yaw_ego), np.sin(prediction.object.yaw_ego), 0.0
+    ])
+    return TrackMeasurement(
+        prediction.class_name,
+        prediction.score,
+        center_global,
+        velocity_global,
+        prediction.object.size_wlh,
+        float(np.arctan2(heading_global[1], heading_global[0])),
+    )

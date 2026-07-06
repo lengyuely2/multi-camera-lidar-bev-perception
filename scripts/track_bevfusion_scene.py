@@ -16,25 +16,7 @@ from parking_bev.predictions import (
     category_for_detection_class,
     within_detection_range,
 )
-from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
-
-
-def _prediction_to_measurement(prediction, ego_to_global: np.ndarray) -> TrackMeasurement:
-    rotation = ego_to_global[:3, :3]
-    translation = ego_to_global[:3, 3]
-    center_global = rotation @ prediction.object.center_ego + translation
-    velocity_global = (rotation @ np.r_[prediction.object.velocity_ego, 0.0])[:2]
-    heading_global = rotation @ np.asarray([
-        np.cos(prediction.object.yaw_ego), np.sin(prediction.object.yaw_ego), 0.0
-    ])
-    return TrackMeasurement(
-        prediction.class_name,
-        prediction.score,
-        center_global,
-        velocity_global,
-        prediction.object.size_wlh,
-        float(np.arctan2(heading_global[1], heading_global[0])),
-    )
+from parking_bev.tracking import TimestampAwareTracker, prediction_to_global_measurement
 
 
 def _snapshot_to_ego(snapshot, ego_to_global: np.ndarray) -> Object3D:
@@ -74,7 +56,8 @@ def main() -> None:
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
     source = NuScenesSource(
         args.dataroot, cameras_enabled=False, radar_enabled=False, annotations_enabled=False)
-    tracker = TimestampAwareTracker(history_size=10, max_missed_seconds=1.2)
+    tracker = TimestampAwareTracker(
+        history_size=10, association_distance_m=2.0, max_missed_seconds=1.2)
     renderer = MetricBEVRenderer()
     timestamps = []
     active_counts = []
@@ -98,7 +81,7 @@ def main() -> None:
                 ) if within_detection_range(item.class_name, item.object.center_ego)
             ]
             measurements = [
-                _prediction_to_measurement(item, frame.ego_to_global) for item in predictions
+                prediction_to_global_measurement(item, frame.ego_to_global) for item in predictions
             ]
             snapshots = tracker.update(timestamp_s, measurements)
             visible = [snapshot for snapshot in snapshots if snapshot.hits >= 2]

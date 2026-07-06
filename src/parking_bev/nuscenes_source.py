@@ -32,6 +32,7 @@ class Object3D:
     size_wlh: np.ndarray
     yaw_ego: float
     velocity_ego: np.ndarray
+    instance_token: str | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,7 @@ class NuScenesSource:
                 size_wlh=np.asarray(annotation["size"], dtype=np.float32),
                 yaw_ego=float(orientation_ego.yaw_pitch_roll[0]),
                 velocity_ego=velocity_ego.astype(np.float32),
+                instance_token=annotation["instance_token"],
             ))
         return tuple(objects)
 

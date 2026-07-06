@@ -83,6 +83,16 @@ The output video displays stable IDs, recent trajectories, and a `P` suffix when
 a track is temporarily predicted through a missed detection. Radar measurements
 are not yet used by this tracker; adding radar velocity is a later fusion step.
 
+Evaluate identity consistency against nuScenes instance IDs with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_tracking_ids.py
+```
+
+This diagnostic reports ID precision, ID recall, IDF1, ID switches, fragments,
+and detection coverage for the seven nuScenes tracking classes. It is not the
+official AMOTA/AMOTP benchmark implementation.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

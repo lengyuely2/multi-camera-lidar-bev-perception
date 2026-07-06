@@ -6,6 +6,7 @@ from parking_bev.evaluation import evaluate_detections
 from parking_bev.predictions import Prediction3D, detection_class
 from parking_bev.voxelize import HardVoxelizer
 from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
+from parking_bev.tracking_evaluation import TrackingIdentityEvaluator
 
 
 def test_nuscenes_sensor_layout():
@@ -98,3 +99,22 @@ def test_timestamp_tracker_expires_tracks_by_elapsed_time():
                                    np.zeros(2, np.float32), np.asarray([2, 4, 1.5], np.float32), 0.0)
     assert len(tracker.update(1.0, [measurement])) == 1
     assert len(tracker.update(2.1, [])) == 0
+
+
+def test_tracking_identity_evaluator_detects_id_switch():
+    from parking_bev.tracking import TrackSnapshot
+
+    evaluator = TrackingIdentityEvaluator(center_threshold_m=2.0)
+    expected = Object3D(
+        "ann", "vehicle.car", np.asarray([1, 0, 0], np.float32),
+        np.asarray([2, 4, 1.5], np.float32), 0.0, np.zeros(2, np.float32), "instance-1")
+    first = TrackSnapshot(1, "car", 0.9, np.asarray([1, 0]), np.zeros(2),
+                          np.asarray([2, 4, 1.5]), 0.0, 2, 0, np.asarray([[1, 0]]))
+    second = TrackSnapshot(2, "car", 0.9, np.asarray([1, 0]), np.zeros(2),
+                           np.asarray([2, 4, 1.5]), 0.0, 2, 0, np.asarray([[1, 0]]))
+    evaluator.update([first], [expected], np.eye(4))
+    evaluator.update([second], [expected], np.eye(4))
+    result = evaluator.finalize()
+    assert result["spatial_matches"] == 2
+    assert result["id_switches"] == 1
+    assert result["id_f1"] == 0.5
