@@ -16,6 +16,7 @@ class TrackMeasurement:
     velocity_global: np.ndarray
     size_wlh: np.ndarray
     yaw_global: float
+    appearance: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class _Track:
     yaw_global: float
     last_timestamp_s: float
     last_measurement_timestamp_s: float
+    appearance: np.ndarray | None = None
     hits: int = 1
     missed: int = 0
     history: list[np.ndarray] = field(default_factory=list)
@@ -58,12 +60,16 @@ class TimestampAwareTracker:
         acceleration_noise: float = 3.0,
         measurement_noise_m: float = 0.6,
         history_size: int = 20,
+        appearance_weight: float = 1.5,
+        appearance_momentum: float = 0.8,
     ) -> None:
         self.association_distance_m = association_distance_m
         self.max_missed_seconds = max_missed_seconds
         self.acceleration_noise = acceleration_noise
         self.measurement_noise_m = measurement_noise_m
         self.history_size = history_size
+        self.appearance_weight = appearance_weight
+        self.appearance_momentum = appearance_momentum
         self._tracks: list[_Track] = []
         self._next_id = 1
 
@@ -85,7 +91,14 @@ class TimestampAwareTracker:
                  for measurement_index in measurement_indices]
                 for track_index in track_indices
             ])
-            rows, columns = linear_sum_assignment(distances)
+            costs = distances.copy()
+            for row, track_index in enumerate(track_indices):
+                for column, measurement_index in enumerate(measurement_indices):
+                    costs[row, column] += self.appearance_weight * self._appearance_distance(
+                        self._tracks[track_index].appearance,
+                        measurements[measurement_index].appearance,
+                    )
+            rows, columns = linear_sum_assignment(costs)
             for row, column in zip(rows, columns):
                 if distances[row, column] > self.association_distance_m:
                     continue
@@ -141,6 +154,14 @@ class TimestampAwareTracker:
         track.score = measurement.score
         track.size_wlh = measurement.size_wlh.copy()
         track.yaw_global = measurement.yaw_global
+        if measurement.appearance is not None:
+            if track.appearance is None:
+                track.appearance = measurement.appearance.copy()
+            else:
+                blended = (self.appearance_momentum * track.appearance
+                           + (1 - self.appearance_momentum) * measurement.appearance)
+                norm = np.linalg.norm(blended)
+                track.appearance = blended / norm if norm > 0 else track.appearance
         track.hits += 1
         track.missed = 0
         track.last_measurement_timestamp_s = track.last_timestamp_s
@@ -158,6 +179,7 @@ class TimestampAwareTracker:
             yaw_global=measurement.yaw_global,
             last_timestamp_s=timestamp_s,
             last_measurement_timestamp_s=timestamp_s,
+            appearance=measurement.appearance.copy() if measurement.appearance is not None else None,
             history=[state[:2].copy()],
         )
         self._next_id += 1
@@ -175,10 +197,17 @@ class TimestampAwareTracker:
             track.yaw_global, track.hits, track.missed, np.asarray(track.history).copy(),
         )
 
+    @staticmethod
+    def _appearance_distance(first: np.ndarray | None, second: np.ndarray | None) -> float:
+        if first is None or second is None:
+            return 0.0
+        return float(np.clip(1.0 - np.dot(first, second), 0.0, 2.0))
+
 
 def prediction_to_global_measurement(
     prediction: Prediction3D,
     ego_to_global: np.ndarray,
+    appearance: np.ndarray | None = None,
 ) -> TrackMeasurement:
     rotation = ego_to_global[:3, :3]
     translation = ego_to_global[:3, 3]
@@ -194,4 +223,5 @@ def prediction_to_global_measurement(
         velocity_global,
         prediction.object.size_wlh,
         float(np.arctan2(heading_global[1], heading_global[0])),
+        appearance,
     )

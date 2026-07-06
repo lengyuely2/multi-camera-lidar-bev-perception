@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from parking_bev.appearance import extract_object_appearance
 from parking_bev.nuscenes_source import NuScenesSource
 from parking_bev.predictions import (
     bevfusion_predictions_from_records,
@@ -22,15 +23,18 @@ def main() -> None:
     parser.add_argument("--distance", type=float, default=2.0)
     parser.add_argument("--association-distance", type=float, default=2.0)
     parser.add_argument("--max-missed-seconds", type=float, default=1.2)
+    parser.add_argument("--appearance", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--appearance-weight", type=float, default=0.5)
     parser.add_argument("--output", type=Path, default=Path("output/bevfusion_tracking_evaluation.json"))
     args = parser.parse_args()
 
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
-    source = NuScenesSource(args.dataroot, cameras_enabled=False, radar_enabled=False)
+    source = NuScenesSource(args.dataroot, cameras_enabled=args.appearance, radar_enabled=False)
     tracker = TimestampAwareTracker(
         history_size=10,
         association_distance_m=args.association_distance,
         max_missed_seconds=args.max_missed_seconds,
+        appearance_weight=args.appearance_weight if args.appearance else 0.0,
     )
     evaluator = TrackingIdentityEvaluator(args.distance)
 
@@ -44,7 +48,12 @@ def main() -> None:
             ) if within_detection_range(item.class_name, item.object.center_ego)
         ]
         measurements = [
-            prediction_to_global_measurement(item, frame.ego_to_global) for item in predictions
+            prediction_to_global_measurement(
+                item,
+                frame.ego_to_global,
+                extract_object_appearance(item.object, frame.cameras, frame.calibrations)
+                if args.appearance else None,
+            ) for item in predictions
         ]
         snapshots = tracker.update(frame.timestamp_us / 1_000_000.0, measurements)
         confirmed = [snapshot for snapshot in snapshots if snapshot.hits >= 2]
@@ -64,6 +73,8 @@ def main() -> None:
             "association": "class-aware Hungarian",
             "association_distance_m": args.association_distance,
             "max_missed_seconds": args.max_missed_seconds,
+            "camera_appearance": args.appearance,
+            "appearance_weight": args.appearance_weight if args.appearance else 0.0,
         },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

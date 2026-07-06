@@ -7,6 +7,7 @@ from parking_bev.predictions import Prediction3D, detection_class
 from parking_bev.voxelize import HardVoxelizer
 from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
 from parking_bev.tracking_evaluation import TrackingIdentityEvaluator
+from parking_bev.appearance import extract_object_appearance
 
 
 def test_nuscenes_sensor_layout():
@@ -118,3 +119,18 @@ def test_tracking_identity_evaluator_detects_id_switch():
     assert result["spatial_matches"] == 2
     assert result["id_switches"] == 1
     assert result["id_f1"] == 0.5
+
+
+def test_camera_appearance_histogram_is_normalized():
+    from parking_bev.nuscenes_source import SensorCalibration
+
+    image = np.zeros((100, 100, 3), np.uint8)
+    image[:] = (0, 0, 255)
+    intrinsic = np.asarray([[50, 0, 50], [0, 50, 50], [0, 0, 1]], np.float32)
+    calibration = SensorCalibration(np.eye(4, dtype=np.float32), intrinsic)
+    obj = Object3D("box", "vehicle.car", np.asarray([0, 0, 8], np.float32),
+                   np.asarray([2, 4, 2], np.float32), 0.0, np.zeros(2, np.float32))
+    feature = extract_object_appearance(obj, {"CAM_FRONT": image}, {"CAM_FRONT": calibration})
+    assert feature is not None
+    assert feature.shape == (128,)
+    assert np.isclose(np.linalg.norm(feature), 1.0)

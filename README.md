@@ -93,6 +93,12 @@ This diagnostic reports ID precision, ID recall, IDF1, ID switches, fragments,
 and detection coverage for the seven nuScenes tracking classes. It is not the
 official AMOTA/AMOTP benchmark implementation.
 
+An optional `--appearance` flag projects predicted 3D boxes into the six camera
+views and adds normalized HSV crop histograms to the association cost. It is kept
+off by default: on the current scene it reduced ID switches slightly but also
+reduced IDF1, showing that simple color histograms are not robust enough across
+different cameras and distant, partially occluded objects.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

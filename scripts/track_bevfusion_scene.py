@@ -9,6 +9,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from parking_bev.appearance import extract_object_appearance
 from parking_bev.metric_bev import MetricBEVRenderer
 from parking_bev.nuscenes_source import NuScenesSource, Object3D
 from parking_bev.predictions import (
@@ -49,15 +50,21 @@ def main() -> None:
     parser.add_argument("--dataroot", type=Path, default=Path("data/external/nuscenes"))
     parser.add_argument("--score", type=float, default=0.2)
     parser.add_argument("--fps", type=float, default=2.0)
+    parser.add_argument("--appearance", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--appearance-weight", type=float, default=0.5)
     parser.add_argument("--video", type=Path, default=Path("output/bevfusion_scene_tracking.mp4"))
     parser.add_argument("--report", type=Path, default=Path("output/bevfusion_scene_tracking.json"))
     args = parser.parse_args()
 
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
     source = NuScenesSource(
-        args.dataroot, cameras_enabled=False, radar_enabled=False, annotations_enabled=False)
+        args.dataroot, cameras_enabled=args.appearance, radar_enabled=False, annotations_enabled=False)
     tracker = TimestampAwareTracker(
-        history_size=10, association_distance_m=2.0, max_missed_seconds=1.2)
+        history_size=10,
+        association_distance_m=2.0,
+        max_missed_seconds=1.2,
+        appearance_weight=args.appearance_weight if args.appearance else 0.0,
+    )
     renderer = MetricBEVRenderer()
     timestamps = []
     active_counts = []
@@ -81,7 +88,12 @@ def main() -> None:
                 ) if within_detection_range(item.class_name, item.object.center_ego)
             ]
             measurements = [
-                prediction_to_global_measurement(item, frame.ego_to_global) for item in predictions
+                prediction_to_global_measurement(
+                    item,
+                    frame.ego_to_global,
+                    extract_object_appearance(item.object, frame.cameras, frame.calibrations)
+                    if args.appearance else None,
+                ) for item in predictions
             ]
             snapshots = tracker.update(timestamp_s, measurements)
             visible = [snapshot for snapshot in snapshots if snapshot.hits >= 2]
@@ -140,6 +152,8 @@ def main() -> None:
         "max_active_tracks": max(active_counts, default=0),
         "mean_track_duration_s": float(np.mean(durations)) if durations else 0.0,
         "tracks_by_class": dict(Counter(value["class"] for value in track_stats.values())),
+        "camera_appearance": args.appearance,
+        "appearance_weight": args.appearance_weight if args.appearance else 0.0,
         "note": "P suffix means a temporarily predicted track during a missed detection.",
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
