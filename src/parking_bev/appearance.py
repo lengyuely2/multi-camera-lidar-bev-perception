@@ -12,6 +12,21 @@ def extract_object_appearance(
     calibrations: dict[str, SensorCalibration],
 ) -> np.ndarray | None:
     """Project a 3D box into the best camera and return a normalized HSV histogram."""
+    best_crop = extract_object_crop(obj, cameras, calibrations)
+    if best_crop is None or not best_crop.size:
+        return None
+    hsv = cv2.cvtColor(best_crop, cv2.COLOR_BGR2HSV)
+    histogram = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256]).reshape(-1)
+    norm = float(np.linalg.norm(histogram))
+    return (histogram / norm).astype(np.float32) if norm > 0 else None
+
+
+def extract_object_crop(
+    obj: Object3D,
+    cameras: dict[str, np.ndarray],
+    calibrations: dict[str, SensorCalibration],
+) -> np.ndarray | None:
+    """Return the largest valid projection of an ego-frame 3D box."""
     corners = _box_corners_ego(obj)
     best_crop: np.ndarray | None = None
     best_area = 0
@@ -36,12 +51,7 @@ def extract_object_appearance(
         if area > best_area and x1 - x0 >= 3 and y1 - y0 >= 5:
             best_crop = image[y0:y1, x0:x1]
             best_area = area
-    if best_crop is None or not best_crop.size:
-        return None
-    hsv = cv2.cvtColor(best_crop, cv2.COLOR_BGR2HSV)
-    histogram = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256]).reshape(-1)
-    norm = float(np.linalg.norm(histogram))
-    return (histogram / norm).astype(np.float32) if norm > 0 else None
+    return best_crop
 
 
 def _box_corners_ego(obj: Object3D) -> np.ndarray:

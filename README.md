@@ -107,6 +107,15 @@ multi-return radar estimate, and the measured velocity/identity improvement was
 negligible. The interface remains available for denser real radar hardware and
 later learned radar feature fusion.
 
+For learned appearance, run the tracking scripts inside the existing WSL2
+PyTorch environment with `--learned-appearance --appearance-weight 0.25`.
+The implementation projects boxes into the best of six camera views and batches
+the crops through an ImageNet-pretrained ResNet-18 to obtain normalized 512-D
+embeddings. On the current scene this modestly improves IDF1 and reduces ID
+switches, but it remains a generic visual encoder rather than a dedicated
+vehicle/pedestrian ReID model. Pretrained weights are cached locally and are not
+committed to this repository.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

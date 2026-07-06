@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from parking_bev.appearance import extract_object_appearance
+from parking_bev.learned_appearance import ResNetAppearanceEncoder, extract_learned_appearances
 from parking_bev.radar_fusion import blend_object_and_radar_velocity, estimate_radar_velocity
 from parking_bev.nuscenes_source import NuScenesSource
 from parking_bev.predictions import (
@@ -26,19 +27,26 @@ def main() -> None:
     parser.add_argument("--max-missed-seconds", type=float, default=1.2)
     parser.add_argument("--appearance", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--appearance-weight", type=float, default=0.5)
+    parser.add_argument("--learned-appearance", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--radar", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--radar-weight", type=float, default=0.25)
     parser.add_argument("--output", type=Path, default=Path("output/bevfusion_tracking_evaluation.json"))
     args = parser.parse_args()
+    if args.appearance and args.learned_appearance:
+        parser.error("Choose either --appearance or --learned-appearance")
 
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
     source = NuScenesSource(
-        args.dataroot, cameras_enabled=args.appearance, radar_enabled=args.radar)
+        args.dataroot,
+        cameras_enabled=args.appearance or args.learned_appearance,
+        radar_enabled=args.radar)
+    learned_encoder = ResNetAppearanceEncoder() if args.learned_appearance else None
     tracker = TimestampAwareTracker(
         history_size=10,
         association_distance_m=args.association_distance,
         max_missed_seconds=args.max_missed_seconds,
-        appearance_weight=args.appearance_weight if args.appearance else 0.0,
+        appearance_weight=args.appearance_weight
+        if args.appearance or args.learned_appearance else 0.0,
     )
     evaluator = TrackingIdentityEvaluator(args.distance)
     total_measurements = 0
@@ -54,10 +62,14 @@ def main() -> None:
                 args.score,
             ) if within_detection_range(item.class_name, item.object.center_ego)
         ]
+        learned_features = (extract_learned_appearances(
+            [item.object for item in predictions], frame.cameras, frame.calibrations, learned_encoder)
+            if learned_encoder is not None else [None] * len(predictions))
         measurements = []
-        for item in predictions:
+        for item, learned_feature in zip(predictions, learned_features):
             total_measurements += 1
-            appearance = (extract_object_appearance(item.object, frame.cameras, frame.calibrations)
+            appearance = (learned_feature if args.learned_appearance else
+                          extract_object_appearance(item.object, frame.cameras, frame.calibrations)
                           if args.appearance else None)
             radar_estimate = estimate_radar_velocity(item.object, frame.radar_ego) if args.radar else None
             if radar_estimate is not None:
@@ -93,7 +105,10 @@ def main() -> None:
             "association_distance_m": args.association_distance,
             "max_missed_seconds": args.max_missed_seconds,
             "camera_appearance": args.appearance,
-            "appearance_weight": args.appearance_weight if args.appearance else 0.0,
+            "learned_camera_appearance": args.learned_appearance,
+            "appearance_encoder": "torchvision_resnet18_imagenet" if args.learned_appearance else None,
+            "appearance_weight": args.appearance_weight
+            if args.appearance or args.learned_appearance else 0.0,
             "radar_velocity": args.radar,
             "radar_weight": args.radar_weight if args.radar else 0.0,
             "radar_associated_measurements": radar_measurements,
