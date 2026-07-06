@@ -31,6 +31,7 @@ class TrackingIdentityEvaluator:
         self.last_track_by_instance: dict[str, int] = {}
         self.previously_matched: set[str] = set()
         self.ever_matched: set[str] = set()
+        self.velocity_errors_mps: list[float] = []
 
     def update(
         self,
@@ -83,6 +84,15 @@ class TrackingIdentityEvaluator:
                     self.fragments += 1
                 self.last_track_by_instance[instance_token] = track_id
                 self.ever_matched.add(instance_token)
+                expected_velocity_global = (
+                    rotation @ np.asarray([
+                        class_expected[column].velocity_ego[0],
+                        class_expected[column].velocity_ego[1],
+                        0.0,
+                    ])
+                )[:2]
+                self.velocity_errors_mps.append(float(np.linalg.norm(
+                    class_tracks[row].velocity_global - expected_velocity_global)))
 
         self.previously_matched = current_matched
 
@@ -127,5 +137,9 @@ class TrackingIdentityEvaluator:
             "id_f1": id_f1,
             "id_switches": self.id_switches,
             "fragments": self.fragments,
+            "mean_velocity_error_mps": float(np.mean(self.velocity_errors_mps))
+            if self.velocity_errors_mps else None,
+            "median_velocity_error_mps": float(np.median(self.velocity_errors_mps))
+            if self.velocity_errors_mps else None,
             "scope": "single-scene diagnostic; not official nuScenes AMOTA/AMOTP",
         }

@@ -8,6 +8,7 @@ from parking_bev.voxelize import HardVoxelizer
 from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
 from parking_bev.tracking_evaluation import TrackingIdentityEvaluator
 from parking_bev.appearance import extract_object_appearance
+from parking_bev.radar_fusion import estimate_radar_velocity
 
 
 def test_nuscenes_sensor_layout():
@@ -119,6 +120,7 @@ def test_tracking_identity_evaluator_detects_id_switch():
     assert result["spatial_matches"] == 2
     assert result["id_switches"] == 1
     assert result["id_f1"] == 0.5
+    assert result["mean_velocity_error_mps"] == 0.0
 
 
 def test_camera_appearance_histogram_is_normalized():
@@ -134,3 +136,17 @@ def test_camera_appearance_histogram_is_normalized():
     assert feature is not None
     assert feature.shape == (128,)
     assert np.isclose(np.linalg.norm(feature), 1.0)
+
+
+def test_radar_velocity_is_associated_inside_oriented_box():
+    obj = Object3D("box", "vehicle.car", np.asarray([10, 0, 0], np.float32),
+                   np.asarray([2, 4, 1.5], np.float32), 0.0, np.zeros(2, np.float32))
+    radar = {"RADAR_FRONT": np.asarray([
+        [10, 0, 0, 5, 1],
+        [11, 0.5, 0, 5.2, 0.8],
+        [30, 30, 0, -20, 0],
+    ], np.float32)}
+    estimate = estimate_radar_velocity(obj, radar)
+    assert estimate is not None
+    assert estimate.point_count == 2
+    np.testing.assert_allclose(estimate.velocity_ego, [5.1, 0.9], atol=1e-5)

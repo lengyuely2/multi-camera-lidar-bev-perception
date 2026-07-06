@@ -99,6 +99,14 @@ off by default: on the current scene it reduced ID switches slightly but also
 reduced IDF1, showing that simple color histograms are not robust enough across
 different cameras and distant, partially occluded objects.
 
+An optional `--radar` flag associates points from all five nuScenes radars with
+each oriented 3D box, rejects velocity outliers, requires at least two returns,
+and adds the robust velocity estimate to the Kalman update. This is also off by
+default: only about one quarter of detections in the current scene receive a
+multi-return radar estimate, and the measured velocity/identity improvement was
+negligible. The interface remains available for denser real radar hardware and
+later learned radar feature fusion.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.

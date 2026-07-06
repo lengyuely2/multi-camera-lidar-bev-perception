@@ -17,6 +17,7 @@ class TrackMeasurement:
     size_wlh: np.ndarray
     yaw_global: float
     appearance: np.ndarray | None = None
+    velocity_confidence: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -143,9 +144,20 @@ class TimestampAwareTracker:
         track.last_timestamp_s = timestamp_s
 
     def _correct(self, track: _Track, measurement: TrackMeasurement) -> None:
-        observation = measurement.position_global[:2].astype(np.float64)
-        observation_matrix = np.asarray([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float64)
-        measurement_noise = np.eye(2) * self.measurement_noise_m**2
+        if measurement.velocity_confidence > 0:
+            observation = np.r_[measurement.position_global[:2], measurement.velocity_global[:2]].astype(np.float64)
+            observation_matrix = np.eye(4, dtype=np.float64)
+            velocity_sigma = 2.5 / max(measurement.velocity_confidence, 0.1)
+            measurement_noise = np.diag([
+                self.measurement_noise_m**2,
+                self.measurement_noise_m**2,
+                velocity_sigma**2,
+                velocity_sigma**2,
+            ])
+        else:
+            observation = measurement.position_global[:2].astype(np.float64)
+            observation_matrix = np.asarray([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float64)
+            measurement_noise = np.eye(2) * self.measurement_noise_m**2
         innovation = observation - observation_matrix @ track.state
         innovation_covariance = observation_matrix @ track.covariance @ observation_matrix.T + measurement_noise
         kalman_gain = track.covariance @ observation_matrix.T @ np.linalg.inv(innovation_covariance)
@@ -208,11 +220,14 @@ def prediction_to_global_measurement(
     prediction: Prediction3D,
     ego_to_global: np.ndarray,
     appearance: np.ndarray | None = None,
+    velocity_ego: np.ndarray | None = None,
+    velocity_confidence: float = 0.0,
 ) -> TrackMeasurement:
     rotation = ego_to_global[:3, :3]
     translation = ego_to_global[:3, 3]
     center_global = rotation @ prediction.object.center_ego + translation
-    velocity_global = (rotation @ np.r_[prediction.object.velocity_ego, 0.0])[:2]
+    selected_velocity = prediction.object.velocity_ego if velocity_ego is None else velocity_ego
+    velocity_global = (rotation @ np.r_[selected_velocity, 0.0])[:2]
     heading_global = rotation @ np.asarray([
         np.cos(prediction.object.yaw_ego), np.sin(prediction.object.yaw_ego), 0.0
     ])
@@ -224,4 +239,5 @@ def prediction_to_global_measurement(
         prediction.object.size_wlh,
         float(np.arctan2(heading_global[1], heading_global[0])),
         appearance,
+        velocity_confidence,
     )

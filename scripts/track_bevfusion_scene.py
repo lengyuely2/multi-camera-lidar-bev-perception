@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from parking_bev.appearance import extract_object_appearance
+from parking_bev.radar_fusion import blend_object_and_radar_velocity, estimate_radar_velocity
 from parking_bev.metric_bev import MetricBEVRenderer
 from parking_bev.nuscenes_source import NuScenesSource, Object3D
 from parking_bev.predictions import (
@@ -52,13 +53,16 @@ def main() -> None:
     parser.add_argument("--fps", type=float, default=2.0)
     parser.add_argument("--appearance", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--appearance-weight", type=float, default=0.5)
+    parser.add_argument("--radar", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--radar-weight", type=float, default=0.25)
     parser.add_argument("--video", type=Path, default=Path("output/bevfusion_scene_tracking.mp4"))
     parser.add_argument("--report", type=Path, default=Path("output/bevfusion_scene_tracking.json"))
     args = parser.parse_args()
 
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
     source = NuScenesSource(
-        args.dataroot, cameras_enabled=args.appearance, radar_enabled=False, annotations_enabled=False)
+        args.dataroot, cameras_enabled=args.appearance, radar_enabled=args.radar,
+        annotations_enabled=False)
     tracker = TimestampAwareTracker(
         history_size=10,
         association_distance_m=2.0,
@@ -69,6 +73,9 @@ def main() -> None:
     timestamps = []
     active_counts = []
     track_stats: dict[int, dict] = {}
+    total_measurements = 0
+    radar_measurements = 0
+    radar_points = 0
 
     args.video.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(str(args.video), cv2.VideoWriter_fourcc(*"mp4v"), args.fps, (800, 800))
@@ -87,14 +94,26 @@ def main() -> None:
                     args.score,
                 ) if within_detection_range(item.class_name, item.object.center_ego)
             ]
-            measurements = [
-                prediction_to_global_measurement(
+            measurements = []
+            for item in predictions:
+                total_measurements += 1
+                appearance = (extract_object_appearance(item.object, frame.cameras, frame.calibrations)
+                              if args.appearance else None)
+                radar_estimate = estimate_radar_velocity(item.object, frame.radar_ego) if args.radar else None
+                if radar_estimate is not None:
+                    radar_measurements += 1
+                    radar_points += radar_estimate.point_count
+                velocity = (blend_object_and_radar_velocity(
+                            item.object.velocity_ego, radar_estimate, args.radar_weight)
+                            if radar_estimate is not None else None)
+                measurements.append(prediction_to_global_measurement(
                     item,
                     frame.ego_to_global,
-                    extract_object_appearance(item.object, frame.cameras, frame.calibrations)
-                    if args.appearance else None,
-                ) for item in predictions
-            ]
+                    appearance=appearance,
+                    velocity_ego=velocity,
+                    velocity_confidence=(radar_estimate.confidence * args.radar_weight
+                                         if radar_estimate is not None else 0.0),
+                ))
             snapshots = tracker.update(timestamp_s, measurements)
             visible = [snapshot for snapshot in snapshots if snapshot.hits >= 2]
             active_counts.append(len(visible))
@@ -154,6 +173,11 @@ def main() -> None:
         "tracks_by_class": dict(Counter(value["class"] for value in track_stats.values())),
         "camera_appearance": args.appearance,
         "appearance_weight": args.appearance_weight if args.appearance else 0.0,
+        "radar_velocity": args.radar,
+        "radar_weight": args.radar_weight if args.radar else 0.0,
+        "radar_associated_measurements": radar_measurements,
+        "radar_association_rate": radar_measurements / total_measurements if total_measurements else 0.0,
+        "radar_points_used": radar_points,
         "note": "P suffix means a temporarily predicted track during a missed detection.",
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
