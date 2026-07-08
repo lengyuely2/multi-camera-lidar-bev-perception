@@ -83,6 +83,8 @@ Git.
 If WSL2 fails with `HCS_E_HYPERV_NOT_INSTALLED`, run
 `scripts/repair_wsl2_admin.ps1` from an elevated PowerShell session and reboot
 Windows before retrying the WSL command.
+After WSL2 is working again, `scripts/run_full_mini_after_wsl.ps1` runs the full
+mini batch inference and aggregate evaluation in one command.
 
 ## Temporal tracking
 
