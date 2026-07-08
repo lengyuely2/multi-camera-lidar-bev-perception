@@ -67,6 +67,19 @@ produces aggregate metrics plus a ground-truth/prediction comparison video. The
 diagnostic uses nuScenes class-specific evaluation ranges (30 m for barriers and
 traffic cones, 40 m for pedestrians and two-wheelers, and 50 m for vehicles).
 
+To avoid overfitting decisions to a single clip, run the same pretrained model
+over every nuScenes mini scene and then aggregate detection plus motion-only
+tracking diagnostics:
+
+```powershell
+wsl.exe -d Ubuntu-20.04 --cd /mnt/d/my_project/multi-camera-lidar-bev-perception env PYTHONPATH=/mnt/d/my_project/multi-camera-lidar-bev-perception/src LD_LIBRARY_PATH=/home/yan/micromamba/envs/bevfusion/lib /home/yan/.local/bin/micromamba run -r /home/yan/micromamba -n bevfusion python scripts/run_bevfusion_batch.py configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py data/checkpoints/bevfusion_nuscenes.pth --dataroot data/external/nuscenes --infos data/external/nuscenes/nuscenes_mini_infos_all.pkl --output-dir output/bevfusion_mini/scenes --summary output/bevfusion_mini/batch_summary.json --scene-indices all
+.\.venv\Scripts\python.exe scripts\evaluate_bevfusion_batch.py --prediction-dir output\bevfusion_mini\scenes --output output\bevfusion_mini\evaluation_summary.json
+```
+
+Use `--scene-indices 0` or `--max-frames-per-scene 2` for a fast smoke test.
+The batch summary files stay under `output/` and are intentionally ignored by
+Git.
+
 ## Temporal tracking
 
 `track_bevfusion_scene.py` converts per-frame detections from ego coordinates to
