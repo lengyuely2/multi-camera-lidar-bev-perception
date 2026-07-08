@@ -15,6 +15,8 @@ $ErrorActionPreference = "Stop"
 
 $Project = "D:\my_project\multi-camera-lidar-bev-perception"
 $WslProject = "/mnt/d/my_project/multi-camera-lidar-bev-perception"
+$WslMmdet3d = "$WslProject/data/external/mmdetection3d"
+$WslBevFusionProject = "$WslMmdet3d/projects/BEVFusion"
 $Micromamba = "/home/yan/.local/bin/micromamba"
 $MicromambaRoot = "/home/yan/micromamba"
 $EnvName = "bevfusion"
@@ -29,10 +31,10 @@ wsl.exe -d Ubuntu-20.04 -- nvidia-smi
 
 Write-Host "Running BEVFusion over all nuScenes mini scenes..." -ForegroundColor Cyan
 wsl.exe -d Ubuntu-20.04 --cd $WslProject env `
-    PYTHONPATH=$WslProject/src `
+    PYTHONPATH=$WslProject/src`:$WslMmdet3d`:$WslBevFusionProject `
     LD_LIBRARY_PATH=/home/yan/micromamba/envs/bevfusion/lib `
     $Micromamba run -r $MicromambaRoot -n $EnvName python scripts/run_bevfusion_batch.py `
-    configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py `
+    data/external/mmdetection3d/projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py `
     data/checkpoints/bevfusion_nuscenes.pth `
     --dataroot data/external/nuscenes `
     --infos data/external/nuscenes/nuscenes_mini_infos_all.pkl `
