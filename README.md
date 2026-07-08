@@ -80,6 +80,10 @@ Use `--scene-indices 0` or `--max-frames-per-scene 2` for a fast smoke test.
 The batch summary files stay under `output/` and are intentionally ignored by
 Git.
 
+If WSL2 fails with `HCS_E_HYPERV_NOT_INSTALLED`, run
+`scripts/repair_wsl2_admin.ps1` from an elevated PowerShell session and reboot
+Windows before retrying the WSL command.
+
 ## Temporal tracking
 
 `track_bevfusion_scene.py` converts per-frame detections from ego coordinates to
