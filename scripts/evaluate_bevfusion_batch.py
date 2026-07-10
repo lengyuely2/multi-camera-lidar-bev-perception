@@ -154,9 +154,10 @@ def main() -> None:
     parser.add_argument("--pattern", default="*.json")
     parser.add_argument("--dataroot", type=Path, default=Path("data/external/nuscenes"))
     parser.add_argument("--score", type=float, default=0.2)
+    parser.add_argument("--tracking-score", type=float, default=0.3)
     parser.add_argument("--distance", type=float, default=2.0)
-    parser.add_argument("--association-distance", type=float, default=2.0)
-    parser.add_argument("--max-missed-seconds", type=float, default=1.2)
+    parser.add_argument("--association-distance", type=float, default=4.0)
+    parser.add_argument("--max-missed-seconds", type=float, default=2.0)
     parser.add_argument("--output", type=Path, default=Path("output/bevfusion_mini/evaluation_summary.json"))
     args = parser.parse_args()
 
@@ -182,7 +183,7 @@ def main() -> None:
                 for key in DetectionMetrics.__dataclass_fields__
             }))
         tracking = _evaluate_tracking_scene(
-            payload, source, args.score, args.distance,
+            payload, source, args.tracking_score, args.distance,
             args.association_distance, args.max_missed_seconds)
         tracking_reports.append(tracking)
         inference_times.extend([
@@ -246,6 +247,7 @@ def main() -> None:
         "prediction_dir": str(args.prediction_dir),
         "files": len(files),
         "score_threshold": args.score,
+        "tracking_score_threshold": args.tracking_score,
         "center_distance_threshold_m": args.distance,
         "detection": {
             "overall": _finalize(overall_accumulator),

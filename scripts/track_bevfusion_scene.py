@@ -50,7 +50,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Timestamp-aware tracking over BEVFusion scene predictions")
     parser.add_argument("--predictions", type=Path, default=Path("output/bevfusion_scene_predictions.json"))
     parser.add_argument("--dataroot", type=Path, default=Path("data/external/nuscenes"))
-    parser.add_argument("--score", type=float, default=0.2)
+    parser.add_argument("--score", type=float, default=0.3)
     parser.add_argument("--fps", type=float, default=2.0)
     parser.add_argument("--appearance", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--appearance-weight", type=float, default=0.5)
@@ -71,8 +71,8 @@ def main() -> None:
     learned_encoder = ResNetAppearanceEncoder() if args.learned_appearance else None
     tracker = TimestampAwareTracker(
         history_size=10,
-        association_distance_m=2.0,
-        max_missed_seconds=1.2,
+        association_distance_m=4.0,
+        max_missed_seconds=2.0,
         appearance_weight=args.appearance_weight
         if args.appearance or args.learned_appearance else 0.0,
     )

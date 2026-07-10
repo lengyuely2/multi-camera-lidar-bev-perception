@@ -80,6 +80,20 @@ Use `--scene-indices 0` or `--max-frames-per-scene 2` for a fast smoke test.
 The batch summary files stay under `output/` and are intentionally ignored by
 Git.
 
+Detection and tracking use separate score thresholds by default: `0.2` for the
+detection diagnostic and `0.3` for tracking. The motion tracker defaults
+(`4.0 m` association gate and `2.0 s` missed-track retention) were selected by
+a 36-configuration grid search over all 10 nuScenes mini scenes. This improved
+the aggregate diagnostic IDF1 from `0.6079` to `0.6315`; this remains a local
+diagnostic rather than the official nuScenes tracking benchmark.
+
+Reproduce or extend the search without rerunning BEVFusion inference:
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe scripts\tune_motion_tracker.py
+```
+
 If WSL2 fails with `HCS_E_HYPERV_NOT_INSTALLED`, run
 `scripts/repair_wsl2_admin.ps1` from an elevated PowerShell session and reboot
 Windows before retrying the WSL command.
@@ -92,7 +106,7 @@ mini batch inference and aggregate evaluation in one command.
 the global frame, compensating for ego motion before association. A
 constant-velocity Kalman filter uses the real sample timestamps rather than an
 assumed fixed frame interval, while class-aware Hungarian matching assigns stable
-track IDs. Missing detections are propagated for at most 1.2 seconds.
+track IDs. Missing detections are propagated for at most 2.0 seconds.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\track_bevfusion_scene.py
