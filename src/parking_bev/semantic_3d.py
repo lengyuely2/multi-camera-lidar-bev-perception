@@ -47,6 +47,49 @@ class SemanticTrack:
         return float(np.linalg.norm(self.velocity_ego))
 
 
+def interpolate_semantic_tracks(
+    first: list[SemanticTrack],
+    second: list[SemanticTrack],
+    alpha: float,
+) -> list[SemanticTrack]:
+    """Interpolate matched tracker IDs for smooth display between sensor keyframes."""
+    alpha = float(np.clip(alpha, 0.0, 1.0))
+    first_by_id = {item.track_id: item for item in first}
+    second_by_id = {item.track_id: item for item in second}
+    output = []
+    for track_id in sorted(first_by_id.keys() | second_by_id.keys()):
+        before = first_by_id.get(track_id)
+        after = second_by_id.get(track_id)
+        if before is None:
+            if alpha < 0.5:
+                continue
+            output.append(after)
+            continue
+        if after is None:
+            if alpha >= 0.5:
+                continue
+            output.append(before)
+            continue
+        yaw_delta = float(np.arctan2(
+            np.sin(after.yaw_ego - before.yaw_ego),
+            np.cos(after.yaw_ego - before.yaw_ego),
+        ))
+        output.append(SemanticTrack(
+            track_id=track_id,
+            class_name=before.class_name,
+            score=(1.0 - alpha) * before.score + alpha * after.score,
+            center_ego=((1.0 - alpha) * before.center_ego + alpha * after.center_ego).astype(np.float32),
+            size_wlh=((1.0 - alpha) * before.size_wlh + alpha * after.size_wlh).astype(np.float32),
+            yaw_ego=before.yaw_ego + alpha * yaw_delta,
+            velocity_ego=(
+                (1.0 - alpha) * before.velocity_ego + alpha * after.velocity_ego
+            ).astype(np.float32),
+            history_ego=before.history_ego if alpha < 0.5 else after.history_ego,
+            missed=before.missed if alpha < 0.5 else after.missed,
+        ))
+    return output
+
+
 def snapshot_to_ego(snapshot: TrackSnapshot, ego_to_global: np.ndarray) -> SemanticTrack:
     """Transform one global tracker snapshot into the current ego frame."""
     global_to_ego = np.linalg.inv(ego_to_global)
@@ -374,6 +417,7 @@ class Semantic3DRenderer:
         ego: bool = False,
     ) -> None:
         width, length, height = (float(value) for value in size_wlh)
+        self._draw_vehicle_shadow(image, center, width, length, yaw)
         ground_center = center.copy()
         ground_center[2] = max(height * 0.30, 0.28)
         body_height = height * (0.60 if long_body else 0.48)
@@ -432,6 +476,61 @@ class Semantic3DRenderer:
             if is_visible:
                 cv2.circle(image, tuple(pixel.astype(int)), 3 if ego else 2,
                            (48, 51, 55), -1, cv2.LINE_AA)
+        self._draw_vehicle_lights(image, center, width, length, height, yaw, ego)
+
+    def _draw_vehicle_shadow(
+        self,
+        image: np.ndarray,
+        center: np.ndarray,
+        width: float,
+        length: float,
+        yaw: float,
+    ) -> None:
+        local = np.asarray([
+            [length * 0.52, width * 0.56],
+            [length * 0.52, -width * 0.56],
+            [-length * 0.52, -width * 0.56],
+            [-length * 0.52, width * 0.56],
+        ])
+        rotation = np.asarray([
+            [np.cos(yaw), -np.sin(yaw)],
+            [np.sin(yaw), np.cos(yaw)],
+        ])
+        xy = local @ rotation.T + center[:2]
+        points = np.column_stack((xy, np.full(4, 0.018)))
+        pixels, _, visible = self.project(points)
+        if visible.all():
+            overlay = image.copy()
+            cv2.fillConvexPoly(overlay, pixels.astype(np.int32), (62, 64, 68), cv2.LINE_AA)
+            cv2.addWeighted(overlay, 0.20, image, 0.80, 0.0, image)
+
+    def _draw_vehicle_lights(
+        self,
+        image: np.ndarray,
+        center: np.ndarray,
+        width: float,
+        length: float,
+        height: float,
+        yaw: float,
+        ego: bool,
+    ) -> None:
+        local = np.asarray([
+            [length * 0.505, width * 0.31], [length * 0.505, -width * 0.31],
+            [-length * 0.505, width * 0.31], [-length * 0.505, -width * 0.31],
+        ])
+        rotation = np.asarray([
+            [np.cos(yaw), -np.sin(yaw)],
+            [np.sin(yaw), np.cos(yaw)],
+        ])
+        xy = local @ rotation.T + center[:2]
+        points = np.column_stack((xy, np.full(4, max(height * 0.28, 0.25))))
+        pixels, _, visible = self.project(points)
+        radius = 3 if ego else 2
+        for index, (pixel, is_visible) in enumerate(zip(pixels, visible)):
+            if not is_visible:
+                continue
+            color = (245, 245, 250) if index < 2 else (65, 72, 215)
+            cv2.circle(image, tuple(pixel.astype(int)), radius, color, -1, cv2.LINE_AA)
 
     def _draw_tapered_cabin(
         self,

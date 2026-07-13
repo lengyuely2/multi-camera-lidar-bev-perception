@@ -21,6 +21,9 @@ drivable space, distance, velocity, and tracking.
 只保留干净的语义模型，接近量产车机的环境呈现方式，而不是显示原始点云。
 新版视觉层级参考 Tesla FSD 的浅灰环境、低饱和目标、蓝色路线和重点目标
 高亮，但车辆模型、界面和渲染代码均为本项目自行实现，并非 Tesla 官方界面。
+车辆加入梯形车舱、玻璃顶、车轮、前后灯和地面阴影。演示按 nuScenes 的
+真实时间戳，将 41 个约 2 Hz 感知关键帧平滑插值为 240 帧、12 FPS，完整
+播放约 19.9 秒；README 中的 GIF 会自动播放，MP4 保留 1280×720 清晰版本。
 
 [▶ 查看 MP4 动态演示](docs/videos/semantic-surround-scene-0553.mp4)
 
@@ -35,6 +38,11 @@ ID、距离、速度以及历史轨迹。当前道路和车道线是用于表达
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
     --predictions output\bevfusion_mini\scenes\02_scene-0553.json
+
+# 如需查看未插值的原始感知关键帧
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+    --predictions output\bevfusion_mini\scenes\02_scene-0553.json `
+    --no-smooth
 
 # 显示原始传感器与完整跟踪信息
 .\.venv\Scripts\python.exe scripts\render_semantic_drive.py `

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import json
 from pathlib import Path
 
@@ -10,13 +11,27 @@ import numpy as np
 from parking_bev.nuscenes_source import NuScenesSource
 from parking_bev.predictions import bevfusion_predictions_from_records, within_detection_range
 from parking_bev.radar_fusion import blend_object_and_radar_velocity, estimate_radar_velocity
-from parking_bev.semantic_3d import Semantic3DRenderer, snapshot_to_ego
+from parking_bev.semantic_3d import (
+    Semantic3DRenderer,
+    SemanticTrack,
+    interpolate_semantic_tracks,
+    snapshot_to_ego,
+)
 from parking_bev.tracking import TimestampAwareTracker, prediction_to_global_measurement
 
 
 def _radar_array(radars: dict[str, np.ndarray]) -> np.ndarray:
     available = [points for points in radars.values() if len(points)]
     return np.vstack(available) if available else np.empty((0, 5), dtype=np.float32)
+
+
+@dataclass(frozen=True)
+class RenderKeyframe:
+    source_index: int
+    timestamp_s: float
+    tracks: list[SemanticTrack]
+    radar_points: np.ndarray | None
+    lidar_points: np.ndarray | None
 
 
 def main() -> None:
@@ -30,7 +45,8 @@ def main() -> None:
     parser.add_argument("--radar", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--radar-weight", type=float, default=0.25)
     parser.add_argument("--engineering-mode", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--fps", type=float, default=4.0)
+    parser.add_argument("--smooth", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--fps", type=float, default=12.0)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--screenshot-frame", type=int, default=20)
@@ -54,82 +70,123 @@ def main() -> None:
         appearance_weight=0.0,
     )
     renderer = Semantic3DRenderer(args.width, args.height)
+    keyframes: list[RenderKeyframe] = []
 
     args.video.parent.mkdir(parents=True, exist_ok=True)
     args.screenshot.parent.mkdir(parents=True, exist_ok=True)
+    radar_associations = 0
+    total_measurements = 0
+    for index, record in enumerate(payload["frames"]):
+        frame = source.read_token(record["sample_token"])
+        timestamp_s = frame.timestamp_us / 1_000_000.0
+        predictions = [
+            item for item in bevfusion_predictions_from_records(
+                record["predictions"],
+                frame.calibrations["LIDAR_TOP"].sensor_to_ego,
+                args.score,
+            )
+            if within_detection_range(item.class_name, item.object.center_ego)
+        ]
+        measurements = []
+        for item in predictions:
+            total_measurements += 1
+            radar_estimate = (
+                estimate_radar_velocity(item.object, frame.radar_ego)
+                if args.radar else None
+            )
+            if radar_estimate is not None:
+                radar_associations += 1
+            velocity = (
+                blend_object_and_radar_velocity(
+                    item.object.velocity_ego, radar_estimate, args.radar_weight)
+                if radar_estimate is not None else None
+            )
+            measurements.append(prediction_to_global_measurement(
+                item,
+                frame.ego_to_global,
+                velocity_ego=velocity,
+                velocity_confidence=(
+                    radar_estimate.confidence * args.radar_weight
+                    if radar_estimate is not None else 0.0
+                ),
+            ))
+
+        snapshots = tracker.update(timestamp_s, measurements)
+        tracks = [
+            snapshot_to_ego(snapshot, frame.ego_to_global)
+            for snapshot in snapshots if snapshot.hits >= 2
+        ]
+        keyframes.append(RenderKeyframe(
+            source_index=index,
+            timestamp_s=timestamp_s,
+            tracks=tracks,
+            radar_points=_radar_array(frame.radar_ego) if args.radar else None,
+            lidar_points=frame.lidar_ego if args.engineering_mode else None,
+        ))
+
+    if not keyframes:
+        raise ValueError("Prediction file contains no frames")
+
+    source_duration_s = keyframes[-1].timestamp_s - keyframes[0].timestamp_s
+    output_fps = (
+        args.fps if args.smooth else
+        (len(keyframes) - 1) / source_duration_s if source_duration_s > 0 else 1.0
+    )
     writer = cv2.VideoWriter(
-        str(args.video), cv2.VideoWriter_fourcc(*"mp4v"), args.fps,
+        str(args.video), cv2.VideoWriter_fourcc(*"mp4v"), output_fps,
         (args.width, args.height),
     )
     if not writer.isOpened():
         raise RuntimeError(f"Could not create {args.video}")
 
-    first_timestamp_s = None
-    radar_associations = 0
-    total_measurements = 0
+    first_timestamp_s = keyframes[0].timestamp_s
     rendered_objects = 0
     rendered_frames = 0
     screenshot_written = False
-    try:
-        for index, record in enumerate(payload["frames"]):
-            frame = source.read_token(record["sample_token"])
-            timestamp_s = frame.timestamp_us / 1_000_000.0
-            if first_timestamp_s is None:
-                first_timestamp_s = timestamp_s
-            predictions = [
-                item for item in bevfusion_predictions_from_records(
-                    record["predictions"],
-                    frame.calibrations["LIDAR_TOP"].sensor_to_ego,
-                    args.score,
-                )
-                if within_detection_range(item.class_name, item.object.center_ego)
-            ]
-            measurements = []
-            for item in predictions:
-                total_measurements += 1
-                radar_estimate = (
-                    estimate_radar_velocity(item.object, frame.radar_ego)
-                    if args.radar else None
-                )
-                if radar_estimate is not None:
-                    radar_associations += 1
-                velocity = (
-                    blend_object_and_radar_velocity(
-                        item.object.velocity_ego, radar_estimate, args.radar_weight)
-                    if radar_estimate is not None else None
-                )
-                measurements.append(prediction_to_global_measurement(
-                    item,
-                    frame.ego_to_global,
-                    velocity_ego=velocity,
-                    velocity_confidence=(
-                        radar_estimate.confidence * args.radar_weight
-                        if radar_estimate is not None else 0.0
-                    ),
-                ))
 
-            snapshots = tracker.update(timestamp_s, measurements)
-            tracks = [
-                snapshot_to_ego(snapshot, frame.ego_to_global)
-                for snapshot in snapshots if snapshot.hits >= 2
-            ]
-            rendered_objects += len(tracks)
-            rendered_frames += 1
-            radar_points = _radar_array(frame.radar_ego) if args.radar else None
-            image = renderer.render(
-                tracks,
-                elapsed_s=timestamp_s - first_timestamp_s,
-                frame_index=index,
-                radar_enabled=args.radar,
-                radar_points_ego=radar_points,
-                lidar_points_ego=frame.lidar_ego if args.engineering_mode else None,
-                engineering_mode=args.engineering_mode,
-            )
-            writer.write(image)
-            if index == args.screenshot_frame:
-                if not cv2.imwrite(str(args.screenshot), image, [cv2.IMWRITE_JPEG_QUALITY, 92]):
-                    raise RuntimeError(f"Could not write {args.screenshot}")
-                screenshot_written = True
+    def write_frame(
+        tracks: list[SemanticTrack],
+        timestamp_s: float,
+        source_index: int,
+        sensor_frame: RenderKeyframe,
+    ) -> None:
+        nonlocal rendered_objects, rendered_frames, screenshot_written
+        image = renderer.render(
+            tracks,
+            elapsed_s=timestamp_s - first_timestamp_s,
+            frame_index=source_index,
+            radar_enabled=args.radar,
+            radar_points_ego=sensor_frame.radar_points,
+            lidar_points_ego=sensor_frame.lidar_points,
+            engineering_mode=args.engineering_mode,
+        )
+        writer.write(image)
+        rendered_objects += len(tracks)
+        rendered_frames += 1
+        if source_index == args.screenshot_frame and not screenshot_written:
+            if not cv2.imwrite(str(args.screenshot), image, [cv2.IMWRITE_JPEG_QUALITY, 92]):
+                raise RuntimeError(f"Could not write {args.screenshot}")
+            screenshot_written = True
+
+    try:
+        for before, after in zip(keyframes, keyframes[1:]):
+            duration_s = max(after.timestamp_s - before.timestamp_s, 1.0 / output_fps)
+            steps = max(1, round(duration_s * args.fps)) if args.smooth else 1
+            for step in range(steps):
+                alpha = step / steps
+                tracks = (
+                    interpolate_semantic_tracks(before.tracks, after.tracks, alpha)
+                    if args.smooth else before.tracks
+                )
+                sensor_frame = before if alpha < 0.5 else after
+                write_frame(
+                    tracks,
+                    (1.0 - alpha) * before.timestamp_s + alpha * after.timestamp_s,
+                    before.source_index,
+                    sensor_frame,
+                )
+        final = keyframes[-1]
+        write_frame(final.tracks, final.timestamp_s, final.source_index, final)
     finally:
         writer.release()
 
@@ -138,8 +195,11 @@ def main() -> None:
             f"Screenshot frame {args.screenshot_frame} is outside the rendered sequence")
     report = {
         "scene_name": payload["scene_name"],
-        "frames": rendered_frames,
-        "video_fps": args.fps,
+        "source_keyframes": len(keyframes),
+        "video_frames": rendered_frames,
+        "source_duration_s": source_duration_s,
+        "video_fps": output_fps,
+        "smooth_interpolation": args.smooth,
         "resolution": [args.width, args.height],
         "score_threshold": args.score,
         "camera_lidar_bevfusion": True,

@@ -9,7 +9,12 @@ from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
 from parking_bev.tracking_evaluation import TrackingIdentityEvaluator
 from parking_bev.appearance import extract_object_appearance
 from parking_bev.radar_fusion import estimate_radar_velocity
-from parking_bev.semantic_3d import Semantic3DRenderer, snapshot_to_ego
+from parking_bev.semantic_3d import (
+    Semantic3DRenderer,
+    SemanticTrack,
+    interpolate_semantic_tracks,
+    snapshot_to_ego,
+)
 
 
 def test_nuscenes_sensor_layout():
@@ -119,6 +124,31 @@ def test_semantic_3d_driving_mode_is_lighter_than_engineering_mode():
     engineering = renderer.render([], 0.0, 0, radar_enabled=True, engineering_mode=True)
     assert driving.shape == (360, 640, 3)
     assert float(driving.mean()) > float(engineering.mean()) + 100.0
+
+
+def test_semantic_tracks_interpolate_positions_and_wrapped_yaw():
+    common = {
+        "track_id": 3,
+        "class_name": "car",
+        "score": 0.9,
+        "size_wlh": np.asarray([2.0, 4.0, 1.5], np.float32),
+        "velocity_ego": np.asarray([2.0, 0.0], np.float32),
+        "history_ego": np.empty((0, 3), np.float32),
+        "missed": 0,
+    }
+    before = SemanticTrack(
+        center_ego=np.asarray([0.0, 0.0, 0.75], np.float32),
+        yaw_ego=np.deg2rad(179.0),
+        **common,
+    )
+    after = SemanticTrack(
+        center_ego=np.asarray([10.0, 2.0, 0.75], np.float32),
+        yaw_ego=np.deg2rad(-179.0),
+        **common,
+    )
+    middle = interpolate_semantic_tracks([before], [after], 0.5)[0]
+    np.testing.assert_allclose(middle.center_ego, [5.0, 1.0, 0.75])
+    assert abs(abs(np.rad2deg(middle.yaw_ego)) - 180.0) < 0.01
 
 
 def test_tracker_snapshot_transforms_to_semantic_ego_track():
