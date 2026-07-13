@@ -113,6 +113,14 @@ def test_semantic_3d_projection_places_forward_center_on_screen():
     assert pixels[1, 0] < pixels[0, 0]
 
 
+def test_semantic_3d_driving_mode_is_lighter_than_engineering_mode():
+    renderer = Semantic3DRenderer(width=640, height=360)
+    driving = renderer.render([], 0.0, 0, radar_enabled=True, engineering_mode=False)
+    engineering = renderer.render([], 0.0, 0, radar_enabled=True, engineering_mode=True)
+    assert driving.shape == (360, 640, 3)
+    assert float(driving.mean()) > float(engineering.mean()) + 100.0
+
+
 def test_tracker_snapshot_transforms_to_semantic_ego_track():
     from parking_bev.tracking import TrackSnapshot
 

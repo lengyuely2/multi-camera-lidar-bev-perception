@@ -19,6 +19,8 @@ drivable space, distance, velocity, and tracking.
 行人和其他目标根据 BEVFusion 的米制三维位置实时移动。Camera 与 LiDAR
 完成主干感知，Radar 默认参与目标速度更新；右上角显示最近目标。主画面
 只保留干净的语义模型，接近量产车机的环境呈现方式，而不是显示原始点云。
+新版视觉层级参考 Tesla FSD 的浅灰环境、低饱和目标、蓝色路线和重点目标
+高亮，但车辆模型、界面和渲染代码均为本项目自行实现，并非 Tesla 官方界面。
 
 [▶ 查看 MP4 动态演示](docs/videos/semantic-surround-scene-0553.mp4)
 
