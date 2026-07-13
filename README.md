@@ -9,7 +9,38 @@ drivable space, distance, velocity, and tracking.
 
 ## 当前运行效果
 
-### 1. 同步多传感器输入
+### 1. 语义化三维环境显示
+
+![Camera、LiDAR 与 Radar 融合后的三维语义环境动画](docs/images/semantic-surround-demo.gif)
+
+[查看 1280×720 驾驶模式截图](docs/images/semantic-surround-driving.png)
+
+这是新增加的驾驶可视化模式：本车保持在画面中央，周围汽车、公交车、
+行人和其他目标根据 BEVFusion 的米制三维位置实时移动。Camera 与 LiDAR
+完成主干感知，Radar 默认参与目标速度更新；右上角显示最近目标。主画面
+只保留干净的语义模型，接近量产车机的环境呈现方式，而不是显示原始点云。
+
+[▶ 查看 MP4 动态演示](docs/videos/semantic-surround-scene-0553.mp4)
+
+![包含点云、Radar、目标 ID、距离、速度和轨迹的工程模式](docs/images/semantic-surround-engineering.jpg)
+
+加入 `--engineering-mode` 后会显示 LiDAR 点云、Radar 点和速度箭头、目标
+ID、距离、速度以及历史轨迹。当前道路和车道线是用于表达尺度与方位的参考
+平面，还不是模型检测到的真实道路几何；真实车道、路沿和可行驶区域是下一
+阶段的感知输出。
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+    --predictions output\bevfusion_mini\scenes\02_scene-0553.json
+
+# 显示原始传感器与完整跟踪信息
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+    --predictions output\bevfusion_mini\scenes\02_scene-0553.json `
+    --engineering-mode
+```
+
+### 2. 同步多传感器输入
 
 ![nuScenes 六路相机、激光雷达与毫米波雷达输入](docs/images/nuscenes-multisensor-input.jpg)
 
@@ -17,7 +48,7 @@ drivable space, distance, velocity, and tracking.
 LiDAR 点云（青色）和 Radar 速度观测（红色）。项目接口允许分别开关
 Camera、LiDAR 和 Radar；迁移到实车时也可以改成四相机配置。
 
-### 2. BEVFusion 三维目标检测
+### 3. BEVFusion 三维目标检测
 
 ![BEVFusion 真值与预测结果对照](docs/images/bevfusion-prediction-vs-ground-truth.jpg)
 
@@ -26,7 +57,7 @@ Camera、LiDAR 和 Radar；迁移到实车时也可以改成四相机配置。
 图像与 LiDAR 特征，在统一的米制 BEV 坐标系中输出类别、置信度、三维框、
 朝向和速度。真值只用于离线评估，不参与模型推理。
 
-### 3. 调参后的时序跟踪
+### 4. 调参后的时序跟踪
 
 ![scene-1077 调参后的 BEV 时序跟踪](docs/images/scene-1077-tuned-tracking.jpg)
 
@@ -48,7 +79,7 @@ flowchart LR
     D["BEV 3D 检测<br/>类别、位置、尺寸、朝向、速度"]
     T["全局坐标时序跟踪<br/>Kalman + Hungarian"]
     O["结构化感知输出<br/>目标 ID、距离、速度、轨迹"]
-    V["BEV 显示与离线评估"]
+    V["BEV 与三维语义显示<br/>离线评估"]
 
     C --> S
     L --> S

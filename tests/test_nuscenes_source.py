@@ -9,6 +9,7 @@ from parking_bev.tracking import TimestampAwareTracker, TrackMeasurement
 from parking_bev.tracking_evaluation import TrackingIdentityEvaluator
 from parking_bev.appearance import extract_object_appearance
 from parking_bev.radar_fusion import estimate_radar_velocity
+from parking_bev.semantic_3d import Semantic3DRenderer, snapshot_to_ego
 
 
 def test_nuscenes_sensor_layout():
@@ -101,6 +102,30 @@ def test_timestamp_tracker_expires_tracks_by_elapsed_time():
                                    np.zeros(2, np.float32), np.asarray([2, 4, 1.5], np.float32), 0.0)
     assert len(tracker.update(1.0, [measurement])) == 1
     assert len(tracker.update(2.1, [])) == 0
+
+
+def test_semantic_3d_projection_places_forward_center_on_screen():
+    renderer = Semantic3DRenderer(width=800, height=450)
+    pixels, depth, visible = renderer.project(np.asarray([[20, 0, 0], [20, 4, 0]], np.float32))
+    assert visible.all()
+    assert depth[0] > 0
+    assert abs(pixels[0, 0] - 400) < 1
+    assert pixels[1, 0] < pixels[0, 0]
+
+
+def test_tracker_snapshot_transforms_to_semantic_ego_track():
+    from parking_bev.tracking import TrackSnapshot
+
+    snapshot = TrackSnapshot(
+        7, "car", 0.9, np.asarray([10.0, 2.0]), np.asarray([3.0, 0.0]),
+        np.asarray([2.0, 4.0, 1.5]), 0.0, 4, 0,
+        np.asarray([[8.0, 2.0], [10.0, 2.0]]),
+    )
+    track = snapshot_to_ego(snapshot, np.eye(4))
+    np.testing.assert_allclose(track.center_ego, [10.0, 2.0, 0.75])
+    np.testing.assert_allclose(track.velocity_ego, [3.0, 0.0])
+    assert track.track_id == 7
+    assert track.distance_m > 10.0
 
 
 def test_tracking_identity_evaluator_detects_id_switch():
