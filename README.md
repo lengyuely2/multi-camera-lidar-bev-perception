@@ -7,6 +7,62 @@ LiDAR, and radar. Parking remains one supported scenario, but the system targets
 general urban driving perception, including vehicles, pedestrians, cyclists,
 drivable space, distance, velocity, and tracking.
 
+## 当前运行效果
+
+### 1. 同步多传感器输入
+
+![nuScenes 六路相机、激光雷达与毫米波雷达输入](docs/images/nuscenes-multisensor-input.jpg)
+
+上半部分是 nuScenes 的六路环视相机，下半部分是车辆坐标系下的
+LiDAR 点云（青色）和 Radar 速度观测（红色）。项目接口允许分别开关
+Camera、LiDAR 和 Radar；迁移到实车时也可以改成四相机配置。
+
+### 2. BEVFusion 三维目标检测
+
+![BEVFusion 真值与预测结果对照](docs/images/bevfusion-prediction-vs-ground-truth.jpg)
+
+左侧为数据集真值，右侧为预训练 BEVFusion 的输出。青色为 LiDAR 点云，
+绿色矩形为本车，黄色框主要表示车辆，紫色表示行人等目标。模型融合相机
+图像与 LiDAR 特征，在统一的米制 BEV 坐标系中输出类别、置信度、三维框、
+朝向和速度。真值只用于离线评估，不参与模型推理。
+
+### 3. 调参后的时序跟踪
+
+![scene-1077 调参后的 BEV 时序跟踪](docs/images/scene-1077-tuned-tracking.jpg)
+
+每个目标都有稳定的 `ID`，彩色折线是最近运动轨迹；`P` 表示当前帧暂时
+漏检、由卡尔曼滤波短时预测的目标。经过全部 10 个 nuScenes mini 场景的
+36 组参数扫描，运动跟踪诊断 IDF1 从 `60.79%` 提升到 `63.15%`，其中
+`scene-1077` 从 `23.70%` 提升到 `42.11%`。这些是本项目的管线诊断指标，
+不是官方 nuScenes AMOTA/AMOTP 结果。
+
+## 当前系统流程
+
+```mermaid
+flowchart LR
+    C["环视相机<br/>nuScenes: 6 路 / 实车可配 4 路"]
+    L["LiDAR 点云"]
+    R["Radar 点云与速度<br/>可选开关"]
+    S["时间同步、标定<br/>坐标统一"]
+    F["预训练 BEVFusion<br/>相机 + LiDAR 特征融合"]
+    D["BEV 3D 检测<br/>类别、位置、尺寸、朝向、速度"]
+    T["全局坐标时序跟踪<br/>Kalman + Hungarian"]
+    O["结构化感知输出<br/>目标 ID、距离、速度、轨迹"]
+    V["BEV 显示与离线评估"]
+
+    C --> S
+    L --> S
+    S --> F --> D --> T --> O
+    R -. "可选速度辅助" .-> T
+    D --> V
+    T --> V
+```
+
+当前主模型是 **BEVFusion（相机 + LiDAR）**，不是 BEVFormer。Radar 已有
+可控读取和跟踪速度融合接口，但尚未进入 BEVFusion 神经网络主干。项目目前
+完成的是感知、BEV 检测、时序跟踪与可视化，不包含真实车辆的规划、控制和
+CAN 执行；不得直接用于道路车辆安全控制。
+
 ## nuScenes mini
 
 The official nuScenes mini split provides 6 cameras, 1 LiDAR, 5 radars, sensor
