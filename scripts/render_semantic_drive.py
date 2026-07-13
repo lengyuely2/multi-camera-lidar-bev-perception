@@ -25,6 +25,47 @@ def _radar_array(radars: dict[str, np.ndarray]) -> np.ndarray:
     return np.vstack(available) if available else np.empty((0, 5), dtype=np.float32)
 
 
+def _camera_tile(image: np.ndarray, size: tuple[int, int], label: str) -> np.ndarray:
+    width, height = size
+    source_height, source_width = image.shape[:2]
+    scale = max(width / source_width, height / source_height)
+    resized = cv2.resize(
+        image,
+        (round(source_width * scale), round(source_height * scale)),
+        interpolation=cv2.INTER_AREA,
+    )
+    x = max(0, (resized.shape[1] - width) // 2)
+    y = max(0, (resized.shape[0] - height) // 2)
+    tile = resized[y:y + height, x:x + width].copy()
+    cv2.rectangle(tile, (0, 0), (width, 27), (13, 15, 18), -1)
+    cv2.putText(tile, label, (10, 19), cv2.FONT_HERSHEY_SIMPLEX,
+                0.45, (245, 245, 245), 1, cv2.LINE_AA)
+    return tile
+
+
+def _camera_montage(cameras: dict[str, np.ndarray], width: int, height: int) -> np.ndarray:
+    """Place all six nuScenes camera keyframes in a compact real-sensor panel."""
+    canonical = np.zeros((720, 640, 3), dtype=np.uint8)
+    canonical[0:360, 0:640] = _camera_tile(cameras["CAM_FRONT"], (640, 360), "CAM_FRONT - RAW")
+    canonical[360:540, 0:320] = _camera_tile(
+        cameras["CAM_FRONT_LEFT"], (320, 180), "FRONT_LEFT")
+    canonical[360:540, 320:640] = _camera_tile(
+        cameras["CAM_FRONT_RIGHT"], (320, 180), "FRONT_RIGHT")
+    thirds = (213, 214, 213)
+    x = 0
+    for channel, tile_width, label in zip(
+        ("CAM_BACK_LEFT", "CAM_BACK", "CAM_BACK_RIGHT"),
+        thirds,
+        ("BACK_LEFT", "CAM_BACK", "BACK_RIGHT"),
+    ):
+        canonical[540:720, x:x + tile_width] = _camera_tile(
+            cameras[channel], (tile_width, 180), label)
+        x += tile_width
+    if (width, height) == (640, 720):
+        return canonical
+    return cv2.resize(canonical, (width, height), interpolation=cv2.INTER_AREA)
+
+
 @dataclass(frozen=True)
 class RenderKeyframe:
     source_index: int
@@ -32,6 +73,7 @@ class RenderKeyframe:
     tracks: list[SemanticTrack]
     radar_points: np.ndarray | None
     lidar_points: np.ndarray | None
+    camera_montage: np.ndarray | None
 
 
 def main() -> None:
@@ -45,6 +87,7 @@ def main() -> None:
     parser.add_argument("--radar", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--radar-weight", type=float, default=0.25)
     parser.add_argument("--engineering-mode", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--camera-comparison", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--smooth", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--fps", type=float, default=12.0)
     parser.add_argument("--width", type=int, default=1280)
@@ -58,7 +101,7 @@ def main() -> None:
     payload = json.loads(args.predictions.read_text(encoding="utf-8"))
     source = NuScenesSource(
         args.dataroot,
-        cameras_enabled=False,
+        cameras_enabled=args.camera_comparison,
         lidar_enabled=args.engineering_mode,
         radar_enabled=args.radar,
         annotations_enabled=False,
@@ -70,6 +113,8 @@ def main() -> None:
         appearance_weight=0.0,
     )
     renderer = Semantic3DRenderer(args.width, args.height)
+    camera_panel_width = round(args.height * 8 / 9) if args.camera_comparison else 0
+    output_width = args.width + camera_panel_width + (4 if args.camera_comparison else 0)
     keyframes: list[RenderKeyframe] = []
 
     args.video.parent.mkdir(parents=True, exist_ok=True)
@@ -122,6 +167,10 @@ def main() -> None:
             tracks=tracks,
             radar_points=_radar_array(frame.radar_ego) if args.radar else None,
             lidar_points=frame.lidar_ego if args.engineering_mode else None,
+            camera_montage=(
+                _camera_montage(frame.cameras, camera_panel_width, args.height)
+                if args.camera_comparison else None
+            ),
         ))
 
     if not keyframes:
@@ -134,7 +183,7 @@ def main() -> None:
     )
     writer = cv2.VideoWriter(
         str(args.video), cv2.VideoWriter_fourcc(*"mp4v"), output_fps,
-        (args.width, args.height),
+        (output_width, args.height),
     )
     if not writer.isOpened():
         raise RuntimeError(f"Could not create {args.video}")
@@ -160,6 +209,10 @@ def main() -> None:
             lidar_points_ego=sensor_frame.lidar_points,
             engineering_mode=args.engineering_mode,
         )
+        if args.camera_comparison:
+            assert sensor_frame.camera_montage is not None
+            separator = np.full((args.height, 4, 3), (32, 34, 38), dtype=np.uint8)
+            image = np.hstack((sensor_frame.camera_montage, separator, image))
         writer.write(image)
         rendered_objects += len(tracks)
         rendered_frames += 1
@@ -200,7 +253,8 @@ def main() -> None:
         "source_duration_s": source_duration_s,
         "video_fps": output_fps,
         "smooth_interpolation": args.smooth,
-        "resolution": [args.width, args.height],
+        "resolution": [output_width, args.height],
+        "camera_comparison": args.camera_comparison,
         "score_threshold": args.score,
         "camera_lidar_bevfusion": True,
         "radar_velocity_fusion": args.radar,

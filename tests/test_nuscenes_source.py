@@ -151,6 +151,27 @@ def test_semantic_tracks_interpolate_positions_and_wrapped_yaw():
     assert abs(abs(np.rad2deg(middle.yaw_ego)) - 180.0) < 0.01
 
 
+def test_real_camera_montage_contains_all_six_views():
+    from scripts.render_semantic_drive import _camera_montage
+
+    names = (
+        "CAM_FRONT", "CAM_FRONT_LEFT", "CAM_FRONT_RIGHT",
+        "CAM_BACK_LEFT", "CAM_BACK", "CAM_BACK_RIGHT",
+    )
+    cameras = {
+        name: np.full((90, 160, 3), index * 30, dtype=np.uint8)
+        for index, name in enumerate(names, 1)
+    }
+    montage = _camera_montage(cameras, 640, 720)
+    assert montage.shape == (720, 640, 3)
+    assert montage[180, 320, 0] == 30
+    assert montage[450, 160, 0] == 60
+    assert montage[450, 480, 0] == 90
+    assert montage[630, 100, 0] == 120
+    assert montage[630, 320, 0] == 150
+    assert montage[630, 540, 0] == 180
+
+
 def test_tracker_snapshot_transforms_to_semantic_ego_track():
     from parking_bev.tracking import TrackSnapshot
 

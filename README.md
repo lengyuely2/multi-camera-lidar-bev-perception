@@ -9,7 +9,28 @@ drivable space, distance, velocity, and tracking.
 
 ## 当前运行效果
 
-### 1. 语义化三维环境显示
+### 1. 真实相机与融合识别同步对照
+
+![六路真实相机与三维融合识别同步视频](docs/images/real-vs-perception.gif)
+
+[查看 1924×720 对照截图](docs/images/real-vs-perception.jpg) ·
+[▶ 查看 12 FPS 高清 MP4](docs/videos/real-vs-perception-scene-0553.mp4)
+
+左侧是同一 nuScenes 时刻的六路真实相机：前摄占据上半部分，前侧和后三路
+相机位于下方；右侧是 Camera + LiDAR BEVFusion、Radar 速度融合和时序跟踪
+生成的三维语义环境。真实相机保持数据集约 2 Hz 的原始关键帧，右侧目标在
+相邻感知结果之间按真实时间戳插值到 12 FPS，因此不会把生成画面冒充相机
+采样。示例中可以直接对照真实过街行人与右侧识别到的行人目标。
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+    --predictions output\bevfusion_mini\scenes\02_scene-0553.json `
+    --camera-comparison `
+    --video output\real_vs_semantic_smooth.mp4
+```
+
+### 2. 语义化三维环境显示
 
 ![Camera、LiDAR 与 Radar 融合后的三维语义环境动画](docs/images/semantic-surround-demo.gif)
 
@@ -50,7 +71,7 @@ $env:PYTHONPATH = "src"
     --engineering-mode
 ```
 
-### 2. 同步多传感器输入
+### 3. 同步多传感器输入
 
 ![nuScenes 六路相机、激光雷达与毫米波雷达输入](docs/images/nuscenes-multisensor-input.jpg)
 
@@ -58,7 +79,7 @@ $env:PYTHONPATH = "src"
 LiDAR 点云（青色）和 Radar 速度观测（红色）。项目接口允许分别开关
 Camera、LiDAR 和 Radar；迁移到实车时也可以改成四相机配置。
 
-### 3. BEVFusion 三维目标检测
+### 4. BEVFusion 三维目标检测
 
 ![BEVFusion 真值与预测结果对照](docs/images/bevfusion-prediction-vs-ground-truth.jpg)
 
@@ -67,7 +88,7 @@ Camera、LiDAR 和 Radar；迁移到实车时也可以改成四相机配置。
 图像与 LiDAR 特征，在统一的米制 BEV 坐标系中输出类别、置信度、三维框、
 朝向和速度。真值只用于离线评估，不参与模型推理。
 
-### 4. 调参后的时序跟踪
+### 5. 调参后的时序跟踪
 
 ![scene-1077 调参后的 BEV 时序跟踪](docs/images/scene-1077-tuned-tracking.jpg)
 
