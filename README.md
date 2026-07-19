@@ -16,6 +16,7 @@ controller and must not be used for road-vehicle control.
 | Module | Preview | Video |
 |---|---|---|
 | Camera BEV / BEV Perception | ![Camera BEV](docs/images/camera-bev-semantic-style.jpg) | [camera-bev-semantic-style.mp4](docs/videos/camera-bev-semantic-style.mp4) |
+| Camera+LiDAR BEV | ![Camera LiDAR BEV](docs/images/synthetic-camera-lidar-bev.jpg) | [synthetic-camera-lidar-bev.mp4](docs/videos/synthetic-camera-lidar-bev.mp4) |
 | World Prediction | ![World Model Lite](docs/images/world-model-lite-stabilized.jpg) | [world-model-lite-stabilized.mp4](docs/videos/world-model-lite-stabilized.mp4) |
 | Semantic Simulation / Visualization | ![Semantic Surround](docs/images/semantic-surround-simulation-style.png) | [semantic-surround-simulation-style.mp4](docs/videos/semantic-surround-simulation-style.mp4) |
 
@@ -188,6 +189,11 @@ For the local quick-start demo, `configs/demo.yaml` can run a synthetic
 camera+LiDAR BEV visualization. For real data, the nuScenes / BEVFusion path
 uses the official camera+LiDAR checkpoint and the generated prediction JSON
 files under `output/bevfusion_mini/scenes`.
+
+| LiDAR View | Preview |
+|---|---|
+| Synthetic camera+LiDAR BEV | ![Synthetic camera LiDAR BEV](docs/images/synthetic-camera-lidar-bev.jpg) |
+| nuScenes LiDAR metric BEV | ![nuScenes LiDAR metric BEV](docs/images/nuscenes-lidar-metric-bev.jpg) |
 
 ## Running The Semantic Demo Videos
 
