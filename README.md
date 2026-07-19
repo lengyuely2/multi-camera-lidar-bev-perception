@@ -19,6 +19,9 @@ controller and must not be used for road-vehicle control.
 | World Prediction | ![World Model Lite](docs/images/world-model-lite-stabilized.jpg) | [world-model-lite-stabilized.mp4](docs/videos/world-model-lite-stabilized.mp4) |
 | Semantic Simulation / Visualization | ![Semantic Surround](docs/images/semantic-surround-simulation-style.png) | [semantic-surround-simulation-style.mp4](docs/videos/semantic-surround-simulation-style.mp4) |
 
+For a feature-by-feature code map and runtime-flow explanation, see
+[docs/CODE_MAP.md](docs/CODE_MAP.md).
+
 ## Module 1: BEV Perception
 
 The BEV perception module converts sensor observations into a shared
