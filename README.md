@@ -167,6 +167,28 @@ Output:
 output/demo_bev.mp4
 ```
 
+## LiDAR And Camera+LiDAR BEV Path
+
+The LiDAR branch is intentionally kept in the project. It is part of the same
+BEV perception contract as the camera path: sensor measurements are transformed
+into ego-frame metric coordinates and then rasterized onto the shared BEV grid.
+
+Implemented LiDAR-related code:
+
+- `src/parking_bev/sensors/lidar.py` projects point clouds into occupancy,
+  height, and density BEV layers.
+- `src/parking_bev/sensors/voxelize.py` implements hard voxelization for
+  BEVFusion-style point-cloud preprocessing.
+- `src/parking_bev/bev/fusion.py` overlays LiDAR occupancy on top of camera BEV
+  output when LiDAR is enabled.
+- `src/parking_bev/sensors/nuscenes_source.py` loads nuScenes LiDAR samples and
+  converts them into the ego-vehicle frame.
+
+For the local quick-start demo, `configs/demo.yaml` can run a synthetic
+camera+LiDAR BEV visualization. For real data, the nuScenes / BEVFusion path
+uses the official camera+LiDAR checkpoint and the generated prediction JSON
+files under `output/bevfusion_mini/scenes`.
+
 ## Running The Semantic Demo Videos
 
 The styled semantic videos use pre-generated BEVFusion prediction JSON files
