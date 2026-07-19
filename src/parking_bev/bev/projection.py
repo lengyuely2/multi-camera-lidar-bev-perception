@@ -5,7 +5,7 @@ from collections.abc import Mapping
 import cv2
 import numpy as np
 
-from .camera import CAMERA_NAMES
+from ..sensors.camera import CAMERA_NAMES
 
 
 class CameraBEVProjector:
@@ -33,4 +33,3 @@ class CameraBEVProjector:
 
         result = accumulator / np.maximum(weights, 1.0)
         return np.clip(result, 0, 255).astype(np.uint8)
-

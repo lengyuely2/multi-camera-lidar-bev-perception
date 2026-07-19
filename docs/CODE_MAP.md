@@ -10,7 +10,7 @@ configs/              Runtime configuration files
 docs/images/          README and documentation preview images
 docs/videos/          Small checked-in demo videos
 scripts/              Command-line scripts for data, rendering, inference, and evaluation
-src/parking_bev/      Core Python package
+src/parking_bev/      Core Python package, split by feature area
 tests/                Unit tests
 output/               Local generated artifacts, ignored by Git
 data/                 External datasets and checkpoints, ignored by Git
@@ -24,43 +24,66 @@ data/                 External datasets and checkpoints, ignored by Git
 | `configs/demo.yaml` | Original synthetic camera+optional-LiDAR BEV demo. |
 | `configs/fb_ssem_sample.yaml` | Static four-camera sample configuration for FB-SSEM-style inspection. |
 
-## Core BEV Perception Code
+## Feature Package Layout
 
 | Path | Purpose |
 |---|---|
-| `src/parking_bev/app.py` | Main `parking-bev` CLI entry point for camera/LiDAR BEV rendering. |
-| `src/parking_bev/config.py` | YAML configuration loading. |
-| `src/parking_bev/camera.py` | Synthetic, static-image, and video camera rigs. |
-| `src/parking_bev/bev.py` | Camera image warping into a BEV canvas. |
-| `src/parking_bev/lidar.py` | LiDAR projection and BEV occupancy/height/density grids. |
-| `src/parking_bev/voxelize.py` | Hard voxelization helper for LiDAR points. |
-| `src/parking_bev/fusion.py` | Camera-only, LiDAR-only, and fused BEV visual rendering. |
-| `src/parking_bev/metric_bev.py` | Metric BEV renderer for nuScenes objects, LiDAR, radar, and predictions. |
-| `src/parking_bev/nuscenes_source.py` | nuScenes mini reader and sensor-to-ego coordinate transforms. |
-| `src/parking_bev/predictions.py` | BEVFusion prediction loading and class/category conversion. |
-| `src/parking_bev/evaluation.py` | Detection diagnostic metrics. |
+| `src/parking_bev/runtime/` | CLI entry points and YAML configuration loading. |
+| `src/parking_bev/sensors/` | Camera, LiDAR, radar, voxelization, and nuScenes input adapters. |
+| `src/parking_bev/bev/` | Camera-to-BEV projection and BEV visual compositing. |
+| `src/parking_bev/perception/` | BEVFusion prediction loading and detection diagnostics. |
+| `src/parking_bev/tracking/` | Temporal object tracking, identity metrics, and appearance features. |
+| `src/parking_bev/world/` | Short-horizon future prediction and risk scoring. |
+| `src/parking_bev/visualization/` | Metric BEV and semantic driving-scene rendering. |
+| `src/parking_bev/*.py` | Thin compatibility wrappers that keep older imports such as `parking_bev.predictions` working. |
+
+## Runtime Code
+
+| Path | Purpose |
+|---|---|
+| `src/parking_bev/runtime/app.py` | Main `parking-bev` CLI entry point for camera/LiDAR BEV rendering. |
+| `src/parking_bev/runtime/config.py` | YAML configuration loading. |
+
+## Sensor And BEV Code
+
+| Path | Purpose |
+|---|---|
+| `src/parking_bev/sensors/camera.py` | Synthetic, static-image, and video camera rigs. |
+| `src/parking_bev/sensors/lidar.py` | LiDAR projection and BEV occupancy/height/density grids. |
+| `src/parking_bev/sensors/radar_fusion.py` | Radar velocity association and velocity blending. |
+| `src/parking_bev/sensors/voxelize.py` | Hard voxelization helper for LiDAR points. |
+| `src/parking_bev/sensors/nuscenes_source.py` | nuScenes mini reader and sensor-to-ego coordinate transforms. |
+| `src/parking_bev/bev/projection.py` | Camera image warping into a BEV canvas. |
+| `src/parking_bev/bev/fusion.py` | Camera-only, LiDAR-only, and fused BEV visual rendering. |
+| `src/parking_bev/visualization/metric_bev.py` | Metric BEV renderer for nuScenes objects, LiDAR, radar, and predictions. |
+
+## Perception Code
+
+| Path | Purpose |
+|---|---|
+| `src/parking_bev/perception/predictions.py` | BEVFusion prediction loading and class/category conversion. |
+| `src/parking_bev/perception/evaluation.py` | Detection diagnostic metrics. |
 
 ## Tracking And Fusion Code
 
 | Path | Purpose |
 |---|---|
-| `src/parking_bev/tracking.py` | Timestamp-aware Kalman tracker and prediction-to-track measurement conversion. |
-| `src/parking_bev/tracking_evaluation.py` | Identity tracking diagnostics such as IDF1 and ID switches. |
-| `src/parking_bev/radar_fusion.py` | Radar velocity association and velocity blending. |
-| `src/parking_bev/appearance.py` | Camera crop histogram appearance features. |
-| `src/parking_bev/learned_appearance.py` | Optional ResNet-18 learned appearance embeddings. |
+| `src/parking_bev/tracking/tracker.py` | Timestamp-aware Kalman tracker and prediction-to-track measurement conversion. |
+| `src/parking_bev/tracking/evaluation.py` | Identity tracking diagnostics such as IDF1 and ID switches. |
+| `src/parking_bev/tracking/appearance.py` | Camera crop histogram appearance features. |
+| `src/parking_bev/tracking/learned_appearance.py` | Optional ResNet-18 learned appearance embeddings. |
 
 ## World Prediction Code
 
 | Path | Purpose |
 |---|---|
-| `src/parking_bev/world_model.py` | `WorldModelLite`: 3-second constant-relative-velocity rollout and risk scoring. |
+| `src/parking_bev/world/world_model.py` | `WorldModelLite`: 3-second constant-relative-velocity rollout and risk scoring. |
 
 ## Semantic Visualization Code
 
 | Path | Purpose |
 |---|---|
-| `src/parking_bev/semantic_3d.py` | Stylized semantic driving-scene renderer, HUD, track stabilization, and future-path overlay. |
+| `src/parking_bev/visualization/semantic_3d.py` | Stylized semantic driving-scene renderer, HUD, track stabilization, and future-path overlay. |
 | `scripts/render_semantic_drive.py` | Main renderer for semantic surround, camera-BEV-style, and world-model videos. |
 | `scripts/render_bevfusion_predictions.py` | One-frame BEVFusion prediction renderer. |
 | `scripts/render_nuscenes_video.py` | nuScenes input preview video renderer. |
@@ -120,9 +143,9 @@ Main logic:
 ```text
 BEVFusion prediction JSON
   -> NuScenesSource reads frame pose and calibration
-  -> predictions.py converts boxes from LiDAR frame to ego frame
-  -> tracking.py keeps stable object IDs in global coordinates
-  -> semantic_3d.py converts tracks back to current ego frame
+  -> perception/predictions.py converts boxes from LiDAR frame to ego frame
+  -> tracking/tracker.py keeps stable object IDs in global coordinates
+  -> visualization/semantic_3d.py converts tracks back to current ego frame
   -> Semantic3DRenderer draws the camera-BEV-style semantic video
 ```
 
@@ -154,7 +177,7 @@ Main logic:
 BEVFusion predictions
   -> TimestampAwareTracker produces stable object tracks
   -> stabilized_snapshot_to_ego adds display alpha for fade-in/fade-out
-  -> WorldModelLite estimates future object positions over 3 seconds
+  -> world/world_model.py estimates future object positions over 3 seconds
   -> risk scoring checks ego safety envelope and driving corridor
   -> Semantic3DRenderer overlays future paths and WORLD risk HUD
 ```

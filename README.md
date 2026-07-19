@@ -60,9 +60,9 @@ lands in the same metric BEV grid.
 
 ## Module 2: World Prediction
 
-The world prediction module is implemented as `WorldModelLite`. It consumes
-tracked objects from the BEV perception layer and predicts short-horizon future
-motion.
+The world prediction module is implemented as
+`parking_bev.world.world_model.WorldModelLite`. It consumes tracked objects from
+the BEV perception layer and predicts short-horizon future motion.
 
 Inputs:
 
@@ -374,11 +374,23 @@ configs/              Runtime configs
 docs/images/          README preview images
 docs/videos/          Small checked-in demo videos
 scripts/              Dataset, inference, rendering, and evaluation scripts
-src/parking_bev/      Core BEV, tracking, fusion, rendering, and world-model code
+src/parking_bev/      Core package plus compatibility wrappers
+src/parking_bev/runtime/        CLI and configuration loading
+src/parking_bev/sensors/        Camera, LiDAR, radar, voxelization, and nuScenes input
+src/parking_bev/bev/            BEV projection and BEV visual compositing
+src/parking_bev/perception/     Prediction loading and detection diagnostics
+src/parking_bev/tracking/       Temporal tracking, identity metrics, and appearance features
+src/parking_bev/world/          Short-horizon world prediction
+src/parking_bev/visualization/  Metric BEV and semantic scene rendering
 tests/                Unit tests
 output/               Generated local artifacts, ignored by Git
 data/                 External datasets and checkpoints, ignored by Git
 ```
+
+The root-level modules under `src/parking_bev/*.py` are thin compatibility
+wrappers. New code should import from the feature folders, while existing scripts
+can still use stable imports such as `parking_bev.predictions`,
+`parking_bev.tracking`, and `parking_bev.world_model`.
 
 ## Validation
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from .predictions import Prediction3D
+from ..perception.predictions import Prediction3D
 
 
 @dataclass(frozen=True)
