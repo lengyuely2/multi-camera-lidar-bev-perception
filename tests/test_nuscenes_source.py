@@ -14,7 +14,9 @@ from parking_bev.semantic_3d import (
     SemanticTrack,
     interpolate_semantic_tracks,
     snapshot_to_ego,
+    stabilized_snapshot_to_ego,
 )
+from parking_bev.world_model import WorldModelLite, world_model_output_to_dict
 
 
 def test_nuscenes_sensor_layout():
@@ -187,6 +189,25 @@ def test_tracker_snapshot_transforms_to_semantic_ego_track():
     assert track.distance_m > 10.0
 
 
+def test_stabilized_snapshot_fades_in_new_tracks():
+    from parking_bev.tracking import TrackSnapshot
+
+    snapshot = TrackSnapshot(
+        5, "car", 0.9, np.asarray([8.0, 0.0]), np.asarray([0.0, 0.0]),
+        np.asarray([2.0, 4.0, 1.5]), 0.0, 2, 0,
+        np.asarray([[8.0, 0.0]]),
+    )
+    track = stabilized_snapshot_to_ego(
+        snapshot,
+        np.eye(4),
+        min_visible_hits=2,
+        fade_in_hits=4,
+        fade_out_misses=4,
+    )
+    assert track is not None
+    assert track.display_alpha == 0.25
+
+
 def test_tracking_identity_evaluator_detects_id_switch():
     from parking_bev.tracking import TrackSnapshot
 
@@ -234,3 +255,62 @@ def test_radar_velocity_is_associated_inside_oriented_box():
     assert estimate is not None
     assert estimate.point_count == 2
     np.testing.assert_allclose(estimate.velocity_ego, [5.1, 0.9], atol=1e-5)
+
+
+def test_world_model_flags_closing_vehicle_risk():
+    track = SemanticTrack(
+        track_id=9,
+        class_name="car",
+        score=0.95,
+        center_ego=np.asarray([9.0, 0.1, 0.75], np.float32),
+        size_wlh=np.asarray([2.0, 4.2, 1.5], np.float32),
+        yaw_ego=0.0,
+        velocity_ego=np.zeros(2, np.float32),
+        history_ego=np.empty((0, 3), np.float32),
+        missed=0,
+    )
+    output = WorldModelLite(horizon_s=3.0, step_s=0.5).assess(
+        [track],
+        ego_velocity_ego=np.asarray([5.0, 0.0], np.float32),
+    )
+    assert output.risk_level == "critical"
+    assert output.highest_risk is not None
+    assert output.highest_risk.time_to_risk_s == 1.0
+    assert output.risk_score > 0.8
+
+
+def test_world_model_watches_lateral_path_crossing():
+    pedestrian = SemanticTrack(
+        track_id=3,
+        class_name="pedestrian",
+        score=0.8,
+        center_ego=np.asarray([12.0, 4.0, 0.9], np.float32),
+        size_wlh=np.asarray([0.7, 0.7, 1.8], np.float32),
+        yaw_ego=0.0,
+        velocity_ego=np.asarray([0.0, -1.8], np.float32),
+        history_ego=np.empty((0, 3), np.float32),
+        missed=0,
+    )
+    output = WorldModelLite().assess([pedestrian])
+    assert output.risk_level in {"watch", "caution"}
+    assert output.highest_risk is not None
+    assert output.highest_risk.centers_ego.shape[1] == 3
+    report = world_model_output_to_dict(output)
+    assert report["predictions"][0]["track_id"] == 3
+
+
+def test_world_model_keeps_off_path_object_clear():
+    track = SemanticTrack(
+        track_id=4,
+        class_name="car",
+        score=0.7,
+        center_ego=np.asarray([15.0, 12.0, 0.75], np.float32),
+        size_wlh=np.asarray([2.0, 4.0, 1.5], np.float32),
+        yaw_ego=0.0,
+        velocity_ego=np.asarray([0.0, 0.0], np.float32),
+        history_ego=np.empty((0, 3), np.float32),
+        missed=0,
+    )
+    output = WorldModelLite().assess([track])
+    assert output.risk_level == "clear"
+    assert output.risk_score == 0.0

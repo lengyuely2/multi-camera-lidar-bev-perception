@@ -1,5 +1,206 @@
 # Multi-Camera, LiDAR, and Radar BEV Perception for Autonomous Driving
 
+## Project Overview
+
+This project is organized as three connected modules for an autonomous-driving
+perception prototype:
+
+```text
+BEV Perception -> World Prediction -> Semantic Simulation / Visualization
+```
+
+The current implementation is an offline research/demo pipeline. It is useful
+for MyRide-style perception prototyping, visualization, and future VLA/world
+model experiments, but it is not a real-vehicle safety controller.
+
+## Installation
+
+The complete runnable source code is included in this repository under
+`src/parking_bev`, `scripts`, `configs`, and `tests`. Large external assets such
+as nuScenes data, model checkpoints, and generated BEVFusion prediction JSON
+files are intentionally not committed.
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/lengyuely2/multi-camera-lidar-bev-perception.git
+cd multi-camera-lidar-bev-perception
+
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[datasets,dev]"
+```
+
+Run the test suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
+
+## How To Run
+
+Run the synthetic camera-only BEV demo. This does not require nuScenes,
+checkpoints, or generated predictions:
+
+```powershell
+.\.venv\Scripts\parking-bev.exe `
+  --config configs\camera_only.yaml `
+  --max-frames 120 `
+  --no-display
+```
+
+This writes:
+
+```text
+output/camera_only_bev.mp4
+```
+
+Run the styled camera-BEV semantic demo. This uses previously generated
+BEVFusion prediction JSON under `output/bevfusion_mini/scenes`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+  --predictions output\bevfusion_mini\scenes\07_scene-1077.json `
+  --no-radar `
+  --no-world-model `
+  --no-smooth `
+  --width 960 `
+  --height 540 `
+  --title "CAMERA BEV" `
+  --sensor-label "CAMERA BEV ONLY" `
+  --video output\camera_bev_semantic_style.mp4
+```
+
+Run the stabilized world-prediction demo:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+  --predictions output\bevfusion_mini\scenes\07_scene-1077.json `
+  --no-smooth `
+  --min-visible-hits 2 `
+  --fade-in-hits 4 `
+  --fade-out-misses 4 `
+  --video output\world_model_lite_stabilized.mp4
+```
+
+To regenerate the BEVFusion prediction JSON files, first place nuScenes mini at
+`data/external/nuscenes` and run the BEVFusion inference commands in the
+`Pretrained BEVFusion inference` section below. The checked-in MP4 files under
+`docs/videos` let the GitHub page show the demos even without the external
+dataset.
+
+## Demo Videos
+
+| Module | Preview | Video |
+|---|---|---|
+| Camera BEV / BEV Perception | ![Camera BEV](docs/images/camera-bev-semantic-style.jpg) | [camera-bev-semantic-style.mp4](docs/videos/camera-bev-semantic-style.mp4) |
+| World Prediction | ![World Model Lite](docs/images/world-model-lite-stabilized.jpg) | [world-model-lite-stabilized.mp4](docs/videos/world-model-lite-stabilized.mp4) |
+| Semantic Simulation / Visualization | ![Semantic Surround](docs/images/semantic-surround-simulation-style.png) | [semantic-surround-simulation-style.mp4](docs/videos/semantic-surround-simulation-style.mp4) |
+
+## Module 1: BEV Perception
+
+The BEV perception module converts sensor observations into a shared
+ego-vehicle bird's-eye-view representation.
+
+Implemented pieces:
+
+- Camera-only BEV projection through `CameraBEVProjector`.
+- Optional LiDAR rasterization into occupancy, height, and density grids.
+- BEVFusion prediction loading for camera+LiDAR 3D object detections.
+- Radar velocity association as an optional tracker update signal.
+- Timestamp-aware multi-object tracking with a constant-velocity Kalman filter
+  and class-aware Hungarian matching.
+
+Coordinate convention:
+
+```text
+x = forward from ego vehicle
+y = lateral left/right
+unit = metres
+BEV canvas = configured by bev.width_px, bev.height_px, x/y min/max
+```
+
+The important design point is that camera, LiDAR, radar, detections, tracks,
+and future predictions all land in the same ego-frame metric BEV contract:
+
+```text
+sensor sample -> calibration -> ego-frame metric coordinates -> shared BEV grid
+```
+
+Run the camera-BEV-style demo:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+  --no-radar `
+  --no-world-model `
+  --no-smooth `
+  --width 960 `
+  --height 540 `
+  --title "CAMERA BEV" `
+  --sensor-label "CAMERA BEV ONLY" `
+  --video output\camera_bev_semantic_style.mp4
+```
+
+Note: the current semantic camera-BEV-style demo uses existing BEVFusion
+prediction records for object locations. A strictly camera-only neural detector
+would be the next model swap.
+
+## Module 2: World Prediction
+
+The world prediction module is implemented as `WorldModelLite`. It takes tracked
+objects from the BEV perception layer and predicts short-horizon future motion.
+
+Inputs:
+
+- Tracked object position, size, yaw, class, score, and velocity.
+- Ego velocity estimated from consecutive ego poses.
+- Display stability state, used to avoid risk spikes from one-frame detections.
+
+Method:
+
+```text
+current track state + ego velocity
+  -> constant-relative-velocity rollout for 3 seconds
+  -> safety-envelope / ego-corridor overlap test
+  -> clear / watch / caution / critical risk level
+```
+
+The output includes future centers, relative velocity, time-to-risk, minimum
+clearance, risk score, and a human-readable advisory. Newly confirmed tracks
+fade in before they can trigger strong risk warnings, which reduces sudden
+object flashes and risk jumps.
+
+Run the stabilized world-model demo:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+  --no-smooth `
+  --min-visible-hits 2 `
+  --fade-in-hits 4 `
+  --fade-out-misses 4 `
+  --video output\world_model_lite_stabilized.mp4
+```
+
+## Module 3: Semantic Simulation / Visualization
+
+The simulation layer renders perception outputs into a clean driving-scene view.
+This is a visual simulation/debug environment, not a closed-loop physics
+simulator like CARLA.
+
+Implemented pieces:
+
+- `Semantic3DRenderer` renders a stylized road, ego vehicle, detected vehicles,
+  pedestrians, boxes, object history, and HUD panels.
+- `stabilized_snapshot_to_ego` converts tracker outputs into renderable tracks
+  with fade-in/fade-out display alpha.
+- Optional engineering mode can show LiDAR points, radar points, IDs, velocity,
+  and history traces.
+- Optional camera-comparison mode can place raw camera views next to the
+  rendered semantic scene.
+
+This module is the presentation/debug front end for the BEV perception and world
+prediction modules.
+
 面向自动泊车的多相机与激光雷达 BEV 感知融合系统。
 
 The project builds metric Bird's-Eye View representations from surround cameras,
@@ -267,6 +468,32 @@ switches, but it remains a generic visual encoder rather than a dedicated
 vehicle/pedestrian ReID model. Pretrained weights are cached locally and are not
 committed to this repository.
 
+## World Model Lite
+
+`render_semantic_drive.py` now includes a short-horizon world model on top of
+tracked BEVFusion objects. It estimates ego velocity from consecutive nuScenes
+poses, rolls each tracked object forward for 3 seconds with constant relative
+velocity, and scores whether future boxes enter the ego safety envelope or
+planned driving corridor.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\render_semantic_drive.py `
+  --no-smooth `
+  --min-visible-hits 2 `
+  --fade-in-hits 4 `
+  --fade-out-misses 4 `
+  --video output\world_model_lite.mp4 `
+  --screenshot output\world_model_lite.jpg `
+  --report output\world_model_lite.json
+```
+
+The report includes frame-level risk counts, the maximum risk score, and the
+highest-risk predicted future trajectory. The video overlays future paths and a
+`WORLD CLEAR/WATCH/CAUTION/CRITICAL` HUD. Display stabilization fades in newly
+confirmed tracks and fades out short missed detections, reducing one-frame object
+flashes in both the BEV objects and the future prediction overlay. This module is
+a planning diagnostic, not a safety controller.
+
 ## Current MVP
 
 - Four inputs: front, rear, left, and right.
@@ -284,6 +511,26 @@ committed to this repository.
                                                       +-> fused BEV outputs
 LiDAR (optional) -> ego transform -> occupancy BEV ---+
 ```
+
+## Unified BEV Coordinate Convention
+
+All sensor branches should write into the same ego-vehicle BEV grid. The project
+uses `x` as forward, `y` as left/right, metres as the physical unit, and a
+configured pixel canvas from `bev.width_px`, `bev.height_px`, `bev.x_min_m`,
+`bev.x_max_m`, `bev.y_min_m`, and `bev.y_max_m`.
+
+Camera-only, LiDAR, radar, detections, tracking, and the world model should
+therefore share one coordinate contract:
+
+```text
+sensor sample -> sensor calibration -> ego-frame metric coordinates -> BEV grid
+```
+
+The current `configs/camera_only.yaml` video uses the same BEV canvas as the
+main demo, but its four camera `destination_quads` are presentation placeholders.
+For real MyRide cameras, replace those quadrilaterals with calibrated
+camera-to-ego ground-plane projections or a learned view-transformer output that
+lands in the same metric BEV grid.
 
 Recognition will be added after geometric calibration is validated:
 
@@ -305,6 +552,13 @@ The demo writes `output/demo_bev.mp4` and displays a live preview. Use
 ```powershell
 parking-bev --config configs/demo.yaml --max-frames 120 --no-display
 python -m pytest
+```
+
+For a camera-only BEV presentation video with no LiDAR, radar, prediction, or
+world-model overlays:
+
+```powershell
+parking-bev --config configs/camera_only.yaml --max-frames 120 --no-display
 ```
 
 After cloning the public FB-SSEM repository into

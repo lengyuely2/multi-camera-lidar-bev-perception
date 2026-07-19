@@ -15,9 +15,10 @@ from parking_bev.semantic_3d import (
     Semantic3DRenderer,
     SemanticTrack,
     interpolate_semantic_tracks,
-    snapshot_to_ego,
+    stabilized_snapshot_to_ego,
 )
 from parking_bev.tracking import TimestampAwareTracker, prediction_to_global_measurement
+from parking_bev.world_model import WorldModelLite, world_model_output_to_dict
 
 
 def _radar_array(radars: dict[str, np.ndarray]) -> np.ndarray:
@@ -71,9 +72,26 @@ class RenderKeyframe:
     source_index: int
     timestamp_s: float
     tracks: list[SemanticTrack]
+    ego_velocity_ego: np.ndarray
     radar_points: np.ndarray | None
     lidar_points: np.ndarray | None
     camera_montage: np.ndarray | None
+
+
+def _ego_velocity_ego(
+    previous_pose: np.ndarray | None,
+    previous_timestamp_s: float | None,
+    ego_to_global: np.ndarray,
+    timestamp_s: float,
+) -> np.ndarray:
+    if previous_pose is None or previous_timestamp_s is None:
+        return np.zeros(2, dtype=np.float32)
+    dt = timestamp_s - previous_timestamp_s
+    if dt <= 1e-6:
+        return np.zeros(2, dtype=np.float32)
+    velocity_global = (ego_to_global[:3, 3] - previous_pose[:3, 3]) / dt
+    velocity_ego = np.linalg.inv(ego_to_global)[:3, :3] @ velocity_global
+    return velocity_ego[:2].astype(np.float32)
 
 
 def main() -> None:
@@ -88,7 +106,13 @@ def main() -> None:
     parser.add_argument("--radar-weight", type=float, default=0.25)
     parser.add_argument("--engineering-mode", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--camera-comparison", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--world-model", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--title", default="FUSION DRIVE")
+    parser.add_argument("--sensor-label", default=None)
     parser.add_argument("--smooth", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--min-visible-hits", type=int, default=2)
+    parser.add_argument("--fade-in-hits", type=int, default=4)
+    parser.add_argument("--fade-out-misses", type=int, default=4)
     parser.add_argument("--fps", type=float, default=12.0)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
@@ -112,6 +136,7 @@ def main() -> None:
         max_missed_seconds=2.0,
         appearance_weight=0.0,
     )
+    world_model = WorldModelLite(horizon_s=3.0, step_s=0.5)
     renderer = Semantic3DRenderer(args.width, args.height)
     camera_panel_width = round(args.height * 8 / 9) if args.camera_comparison else 0
     output_width = args.width + camera_panel_width + (4 if args.camera_comparison else 0)
@@ -121,9 +146,13 @@ def main() -> None:
     args.screenshot.parent.mkdir(parents=True, exist_ok=True)
     radar_associations = 0
     total_measurements = 0
+    previous_pose: np.ndarray | None = None
+    previous_timestamp_s: float | None = None
     for index, record in enumerate(payload["frames"]):
         frame = source.read_token(record["sample_token"])
         timestamp_s = frame.timestamp_us / 1_000_000.0
+        ego_velocity = _ego_velocity_ego(
+            previous_pose, previous_timestamp_s, frame.ego_to_global, timestamp_s)
         predictions = [
             item for item in bevfusion_predictions_from_records(
                 record["predictions"],
@@ -157,14 +186,22 @@ def main() -> None:
             ))
 
         snapshots = tracker.update(timestamp_s, measurements)
-        tracks = [
-            snapshot_to_ego(snapshot, frame.ego_to_global)
-            for snapshot in snapshots if snapshot.hits >= 2
-        ]
+        tracks = []
+        for snapshot in snapshots:
+            track = stabilized_snapshot_to_ego(
+                snapshot,
+                frame.ego_to_global,
+                min_visible_hits=args.min_visible_hits,
+                fade_in_hits=args.fade_in_hits,
+                fade_out_misses=args.fade_out_misses,
+            )
+            if track is not None:
+                tracks.append(track)
         keyframes.append(RenderKeyframe(
             source_index=index,
             timestamp_s=timestamp_s,
             tracks=tracks,
+            ego_velocity_ego=ego_velocity,
             radar_points=_radar_array(frame.radar_ego) if args.radar else None,
             lidar_points=frame.lidar_ego if args.engineering_mode else None,
             camera_montage=(
@@ -172,6 +209,8 @@ def main() -> None:
                 if args.camera_comparison else None
             ),
         ))
+        previous_pose = frame.ego_to_global.copy()
+        previous_timestamp_s = timestamp_s
 
     if not keyframes:
         raise ValueError("Prediction file contains no frames")
@@ -192,6 +231,9 @@ def main() -> None:
     rendered_objects = 0
     rendered_frames = 0
     screenshot_written = False
+    risk_counts = {level: 0 for level in ("clear", "watch", "caution", "critical")}
+    max_risk_score = 0.0
+    highest_risk_report: dict | None = None
 
     def write_frame(
         tracks: list[SemanticTrack],
@@ -200,6 +242,18 @@ def main() -> None:
         sensor_frame: RenderKeyframe,
     ) -> None:
         nonlocal rendered_objects, rendered_frames, screenshot_written
+        nonlocal max_risk_score, highest_risk_report
+        world_output = (
+            world_model.assess(tracks, sensor_frame.ego_velocity_ego)
+            if args.world_model else None
+        )
+        if world_output is not None:
+            risk_counts[world_output.risk_level] += 1
+            if world_output.risk_score >= max_risk_score:
+                max_risk_score = world_output.risk_score
+                highest_risk_report = world_model_output_to_dict(world_output)
+                highest_risk_report["source_index"] = source_index
+                highest_risk_report["elapsed_s"] = timestamp_s - first_timestamp_s
         image = renderer.render(
             tracks,
             elapsed_s=timestamp_s - first_timestamp_s,
@@ -208,6 +262,9 @@ def main() -> None:
             radar_points_ego=sensor_frame.radar_points,
             lidar_points_ego=sensor_frame.lidar_points,
             engineering_mode=args.engineering_mode,
+            world_output=world_output,
+            title=args.title,
+            sensor_label=args.sensor_label,
         )
         if args.camera_comparison:
             assert sensor_frame.camera_montage is not None
@@ -253,6 +310,12 @@ def main() -> None:
         "source_duration_s": source_duration_s,
         "video_fps": output_fps,
         "smooth_interpolation": args.smooth,
+        "display_stabilization": {
+            "min_visible_hits": args.min_visible_hits,
+            "fade_in_hits": args.fade_in_hits,
+            "fade_out_misses": args.fade_out_misses,
+            "risk_activation_alpha": world_model.risk_activation_alpha,
+        },
         "resolution": [output_width, args.height],
         "camera_comparison": args.camera_comparison,
         "score_threshold": args.score,
@@ -263,7 +326,20 @@ def main() -> None:
         "radar_association_rate": (
             radar_associations / total_measurements if total_measurements else 0.0
         ),
+        "world_model": (
+            {
+                "name": "WorldModelLite",
+                "horizon_s": world_model.horizon_s,
+                "step_s": world_model.step_s,
+                "risk_frame_counts": risk_counts,
+                "max_risk_score": max_risk_score,
+                "highest_risk": highest_risk_report,
+            }
+            if args.world_model else {"enabled": False}
+        ),
         "engineering_mode": args.engineering_mode,
+        "title": args.title,
+        "sensor_label": args.sensor_label,
         "mean_visible_tracks": rendered_objects / rendered_frames if rendered_frames else 0.0,
         "renderer": "stylized metric 3D semantic surround visualization",
         "note": "Road grid is a reference plane; detected map and lane geometry are future work.",

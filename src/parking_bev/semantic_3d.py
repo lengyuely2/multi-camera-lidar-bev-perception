@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
 from .tracking import TrackSnapshot
+
+if TYPE_CHECKING:
+    from .world_model import AgentFuture, WorldModelOutput
 
 
 CLASS_COLORS = {
@@ -24,6 +28,12 @@ CLASS_COLORS = {
 DRIVING_OBJECT_COLOR = (142, 145, 150)
 DRIVING_PEDESTRIAN_COLOR = (105, 108, 113)
 DRIVING_PRIORITY_COLOR = (225, 133, 38)
+RISK_COLORS = {
+    "clear": (118, 170, 105),
+    "watch": (86, 174, 235),
+    "caution": (54, 152, 238),
+    "critical": (45, 68, 236),
+}
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,7 @@ class SemanticTrack:
     velocity_ego: np.ndarray
     history_ego: np.ndarray
     missed: int
+    display_alpha: float = 1.0
 
     @property
     def distance_m(self) -> float:
@@ -86,6 +97,7 @@ def interpolate_semantic_tracks(
             ).astype(np.float32),
             history_ego=before.history_ego if alpha < 0.5 else after.history_ego,
             missed=before.missed if alpha < 0.5 else after.missed,
+            display_alpha=float((1.0 - alpha) * before.display_alpha + alpha * after.display_alpha),
         ))
     return output
 
@@ -130,6 +142,25 @@ def snapshot_to_ego(snapshot: TrackSnapshot, ego_to_global: np.ndarray) -> Seman
         history_ego=history_ego.astype(np.float32),
         missed=snapshot.missed,
     )
+
+
+def stabilized_snapshot_to_ego(
+    snapshot: TrackSnapshot,
+    ego_to_global: np.ndarray,
+    min_visible_hits: int = 2,
+    fade_in_hits: int = 4,
+    fade_out_misses: int = 4,
+) -> SemanticTrack | None:
+    """Convert a tracker snapshot into a display track with fade-in/fade-out state."""
+    if snapshot.hits < min_visible_hits:
+        return None
+    confirmed_steps = snapshot.hits - min_visible_hits + 1
+    fade_in = confirmed_steps / max(fade_in_hits, 1)
+    fade_out = (fade_out_misses + 1 - snapshot.missed) / max(fade_out_misses + 1, 1)
+    alpha = float(np.clip(fade_in, 0.0, 1.0) * np.clip(fade_out, 0.0, 1.0))
+    if alpha <= 0.02:
+        return None
+    return replace(snapshot_to_ego(snapshot, ego_to_global), display_alpha=alpha)
 
 
 class Semantic3DRenderer:
@@ -178,6 +209,9 @@ class Semantic3DRenderer:
         radar_points_ego: np.ndarray | None = None,
         lidar_points_ego: np.ndarray | None = None,
         engineering_mode: bool = False,
+        world_output: "WorldModelOutput | None" = None,
+        title: str = "FUSION DRIVE",
+        sensor_label: str | None = None,
     ) -> np.ndarray:
         image = self._background(engineering_mode)
         self._draw_ground(image, engineering_mode)
@@ -195,13 +229,18 @@ class Semantic3DRenderer:
         if engineering_mode:
             for track in in_view:
                 self._draw_track_history(image, track)
+        if world_output is not None:
+            self._draw_world_predictions(image, world_output.predictions, engineering_mode)
         for track in in_view:
             self._draw_semantic_object(
                 image, track, engineering_mode,
                 priority is not None and track.track_id == priority.track_id,
             )
         self._draw_ego_vehicle(image, engineering_mode)
-        self._draw_hud(image, in_view, elapsed_s, frame_index, radar_enabled, engineering_mode)
+        self._draw_hud(
+            image, in_view, elapsed_s, frame_index, radar_enabled,
+            engineering_mode, world_output, title, sensor_label,
+        )
         return image
 
     def _background(self, engineering_mode: bool) -> np.ndarray:
@@ -307,7 +346,64 @@ class Semantic3DRenderer:
             color = CLASS_COLORS.get(track.class_name, (190, 190, 190))
             cv2.polylines(image, [points], False, color, 3, cv2.LINE_AA)
 
+    def _draw_world_predictions(
+        self,
+        image: np.ndarray,
+        predictions: list["AgentFuture"],
+        engineering_mode: bool,
+    ) -> None:
+        for prediction in predictions:
+            path = prediction.centers_ego.copy()
+            if len(path) < 2:
+                continue
+            if path[-1, 0] < -10.0 or path[0, 0] > 90.0:
+                continue
+            path[:, 2] = 0.10
+            pixels, _, visible = self.project(path)
+            points = pixels[visible].astype(np.int32)
+            if len(points) < 2:
+                continue
+            alpha = float(np.clip(prediction.display_alpha, 0.0, 1.0))
+            if alpha <= 0.03:
+                continue
+            target = image if alpha >= 0.98 else image.copy()
+            color = RISK_COLORS.get(prediction.risk_level, (150, 150, 150))
+            thickness = 3 if prediction.risk_level in {"caution", "critical"} else 2
+            cv2.polylines(target, [points], False, color, thickness, cv2.LINE_AA)
+            for index, point in enumerate(points[1:], 1):
+                radius = 4 if index == len(points) - 1 else 2
+                cv2.circle(target, tuple(point), radius, color, -1, cv2.LINE_AA)
+
+            if prediction.risk_level in {"caution", "critical"}:
+                label = (
+                    f"{prediction.risk_level.upper()} "
+                    f"{prediction.time_to_risk_s:.1f}s"
+                    if prediction.time_to_risk_s is not None
+                    else prediction.risk_level.upper()
+                )
+                anchor = tuple(points[min(len(points) - 1, 2)])
+                scale = 0.42 if engineering_mode else 0.38
+                self._outlined_text(target, label, (anchor[0] + 8, anchor[1] - 8),
+                                    scale, color, 1)
+            if target is not image:
+                cv2.addWeighted(target, alpha, image, 1.0 - alpha, 0.0, image)
+
     def _draw_semantic_object(
+        self,
+        image: np.ndarray,
+        track: SemanticTrack,
+        engineering_mode: bool,
+        priority: bool,
+    ) -> None:
+        alpha = float(np.clip(track.display_alpha, 0.0, 1.0))
+        if alpha <= 0.03:
+            return
+        target = image if alpha >= 0.98 else image.copy()
+        self._draw_semantic_object_body(target, track, engineering_mode, priority)
+        if target is not image:
+            cv2.addWeighted(target, alpha, image, 1.0 - alpha, 0.0, image)
+
+    def _draw_semantic_object_body(
         self,
         image: np.ndarray,
         track: SemanticTrack,
@@ -645,14 +741,22 @@ class Semantic3DRenderer:
         frame_index: int,
         radar_enabled: bool,
         engineering_mode: bool,
+        world_output: "WorldModelOutput | None",
+        title: str,
+        sensor_label: str | None,
     ) -> None:
+        default_sensor_label = (
+            "CAMERA + LIDAR  |  RADAR ON" if engineering_mode and radar_enabled
+            else "CAMERA + LIDAR  |  RADAR OFF" if engineering_mode
+            else f"CAMERA  +  LIDAR  +  {'RADAR' if radar_enabled else 'NO RADAR'}"
+        )
+        displayed_sensor_label = sensor_label or default_sensor_label
         if engineering_mode:
             cv2.rectangle(image, (22, 20), (410, 150), (13, 16, 21), -1, cv2.LINE_AA)
-            self._outlined_text(image, "SURROUND MODEL", (42, 54), 0.78, (245, 245, 245), 2)
+            self._outlined_text(image, title, (42, 54), 0.78, (245, 245, 245), 2)
             cv2.putText(image, "ENGINEERING", (42, 82), cv2.FONT_HERSHEY_SIMPLEX,
                         0.45, (165, 170, 178), 1, cv2.LINE_AA)
-            radar = "RADAR ON" if radar_enabled else "RADAR OFF"
-            cv2.putText(image, f"CAMERA + LIDAR  |  {radar}", (42, 108),
+            cv2.putText(image, displayed_sensor_label, (42, 108),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.44, (100, 190, 245), 1, cv2.LINE_AA)
             cv2.putText(
                 image, f"t {elapsed_s:05.1f}s   frame {frame_index:03d}   objects {len(tracks)}",
@@ -660,13 +764,31 @@ class Semantic3DRenderer:
             )
         else:
             self._rounded_rect(image, (26, 24), (342, 128), 18, (250, 250, 250))
-            cv2.putText(image, "FUSION DRIVE", (48, 58), cv2.FONT_HERSHEY_SIMPLEX,
+            cv2.putText(image, title, (48, 58), cv2.FONT_HERSHEY_SIMPLEX,
                         0.70, (48, 50, 54), 2, cv2.LINE_AA)
-            radar = "RADAR" if radar_enabled else "NO RADAR"
-            cv2.putText(image, f"CAMERA  +  LIDAR  +  {radar}", (48, 85),
+            cv2.putText(image, displayed_sensor_label, (48, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.40, (105, 109, 115), 1, cv2.LINE_AA)
             cv2.putText(image, f"{elapsed_s:04.1f}s     {len(tracks)} objects", (48, 110),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.40, (128, 132, 138), 1, cv2.LINE_AA)
+
+        if world_output is not None:
+            color = RISK_COLORS.get(world_output.risk_level, (130, 130, 130))
+            text = (
+                f"WORLD  {world_output.risk_level.upper()}  "
+                f"{world_output.risk_score:.2f}"
+            )
+            if engineering_mode:
+                cv2.rectangle(image, (22, 158), (500, 230), (13, 16, 21), -1, cv2.LINE_AA)
+                cv2.putText(image, text, (42, 188), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.58, color, 2, cv2.LINE_AA)
+                cv2.putText(image, world_output.advisory[:64], (42, 214),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (210, 213, 218), 1, cv2.LINE_AA)
+            else:
+                self._rounded_rect(image, (26, 138), (442, 206), 16, (250, 250, 250))
+                cv2.putText(image, text, (48, 166), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.52, color, 2, cv2.LINE_AA)
+                cv2.putText(image, world_output.advisory[:54], (48, 190),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.36, (96, 101, 108), 1, cv2.LINE_AA)
 
         nearest = min(tracks, key=lambda item: item.distance_m, default=None)
         if nearest is not None:

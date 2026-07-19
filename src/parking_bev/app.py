@@ -8,7 +8,7 @@ import cv2
 from .bev import CameraBEVProjector
 from .camera import build_camera_rig
 from .config import load_config
-from .fusion import render_fusion, render_lidar
+from .fusion import render_camera, render_fusion, render_lidar
 from .lidar import LidarBEVProjector, SyntheticLidarSource
 
 
@@ -50,7 +50,7 @@ def run(config_path: str, max_frames: int | None = None, display: bool = True) -
 
             mode = runtime.get("view_mode", "fused")
             if mode == "camera":
-                output = camera_bev
+                output = render_camera(camera_bev, bool(runtime.get("draw_overlay", False)))
             elif mode == "lidar":
                 output = render_lidar(lidar_bev)
             else:
@@ -82,4 +82,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

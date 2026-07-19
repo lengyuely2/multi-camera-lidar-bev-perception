@@ -57,6 +57,8 @@ def main() -> None:
     parser.add_argument("--learned-appearance", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--radar", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--radar-weight", type=float, default=0.25)
+    parser.add_argument("--min-visible-hits", type=int, default=3)
+    parser.add_argument("--max-missed-seconds", type=float, default=2.5)
     parser.add_argument("--video", type=Path, default=Path("output/bevfusion_scene_tracking.mp4"))
     parser.add_argument("--report", type=Path, default=Path("output/bevfusion_scene_tracking.json"))
     args = parser.parse_args()
@@ -72,7 +74,7 @@ def main() -> None:
     tracker = TimestampAwareTracker(
         history_size=10,
         association_distance_m=4.0,
-        max_missed_seconds=2.0,
+        max_missed_seconds=args.max_missed_seconds,
         appearance_weight=args.appearance_weight
         if args.appearance or args.learned_appearance else 0.0,
     )
@@ -126,7 +128,7 @@ def main() -> None:
                                          if radar_estimate is not None else 0.0),
                 ))
             snapshots = tracker.update(timestamp_s, measurements)
-            visible = [snapshot for snapshot in snapshots if snapshot.hits >= 2]
+            visible = [snapshot for snapshot in snapshots if snapshot.hits >= args.min_visible_hits]
             active_counts.append(len(visible))
             objects = [_snapshot_to_ego(snapshot, frame.ego_to_global) for snapshot in visible]
             tracked_frame = replace(frame, objects=tuple(objects), radar_ego={})
@@ -187,6 +189,11 @@ def main() -> None:
         "appearance_encoder": "torchvision_resnet18_imagenet" if args.learned_appearance else None,
         "appearance_weight": args.appearance_weight
         if args.appearance or args.learned_appearance else 0.0,
+        "display_stabilization": {
+            "min_visible_hits": args.min_visible_hits,
+            "max_missed_seconds": args.max_missed_seconds,
+            "note": "New tracks must be observed repeatedly before the BEV overlay shows them.",
+        },
         "radar_velocity": args.radar,
         "radar_weight": args.radar_weight if args.radar else 0.0,
         "radar_associated_measurements": radar_measurements,
