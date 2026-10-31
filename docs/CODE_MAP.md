@@ -62,7 +62,35 @@ data/                 External datasets and checkpoints, ignored by Git
 | Path | Purpose |
 |---|---|
 | `src/parking_bev/perception/predictions.py` | BEVFusion prediction loading and class/category conversion. |
+| `src/parking_bev/perception/backend.py` | Model-independent metric detections and isolated worker RPC. |
+| `src/parking_bev/perception/sensor_packet.py` | Label-free calibrated sensor packets, timing checks and LiDAR sweep compensation. |
 | `src/parking_bev/perception/evaluation.py` | Detection diagnostic metrics. |
+
+## AsyncBEV And ROS 2
+
+| Path | Purpose |
+|---|---|
+| `integrations/asyncbev/` | Pinned upstream/weights, label-free inference patch, model worker and environment helpers. |
+| `scripts/prepare_asyncbev.py` | Fetches the fixed source and verifies checkpoint SHA-256. |
+| `scripts/run_asyncbev_nuscenes.py` | Reads sensor/pose tables without opening object annotations, runs the real model and exports compatible scene predictions. |
+| `scripts/check_asyncbev_label_free.py` | Runs the patched warping function without labels and checks supervision isolation. |
+| `ros2/parking_bev_ros/` | ROS 2 package: camera/LiDAR input, tf2, detection/tracking messages, markers and diagnostics. |
+| `scripts/smoke_ros2.py` | Real ROS publish/subscribe checks for saved results or raw sensors through the live model. |
+| `docs/ASYNCBEV_ROS2.md` | Setup, sensor contract, launch commands and measured validation limits. |
+
+## Parking Assistance
+
+| Path | Purpose |
+|---|---|
+| `src/parking_bev/parking/geometry.py` | Signed bicycle motion, oriented footprints and polygon clearance. |
+| `src/parking_bev/parking/assistance.py` | Configurable parking thresholds, swept-region conflicts and stale-input states. |
+| `src/parking_bev/parking/inputs.py` | Validated tracker snapshots, object motion and ego-frame compensation. |
+| `src/parking_bev/visualization/parking.py` | Chinese parking dashboard and metric near-field display. |
+| `configs/parking_assistance.yaml` | Example car dimensions and parking thresholds. |
+| `ros2/parking_bev_ros/parking_bev_ros/parking_node.py` | Independent parking report, image and RViz publisher. |
+| `scripts/demo_parking_assistance.py` | Synthetic reverse-pedestrian, turning-corner, side-clearance and stale-data scenes. |
+| `scripts/smoke_parking_ros2.py` | Actual ROS callbacks, measured-state input and stale-state checks with synthetic data. |
+| `docs/PARKING_ASSISTANCE.md` | Parking setup, message contract, assumptions and validation. |
 
 ## Tracking And Fusion Code
 

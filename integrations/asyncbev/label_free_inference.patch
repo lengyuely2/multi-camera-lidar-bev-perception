@@ -1,0 +1,40 @@
+diff --git a/AGENTS_public.md b/AGENTS_public.md
+index 8d6837f..6be648b 100644
+--- a/AGENTS_public.md
++++ b/AGENTS_public.md
+@@ -1,5 +1,15 @@
+ # Public agent guide for AsyncBEV
+ 
++## Local parking-bev deployment adaptation
++
++This checkout has a local patch: CmtHead.temporal_bev_warping reads ground-truth
++flow and runs its supervision-only FlowEmbedder only during training. Evaluation
++keeps learned velocity estimation, delta-time multiplication and ego-motion
++alignment unchanged; its unused GT-flow diagnostic output is zero. Model state
++dict keys are unchanged. A separate parking-bev worker supplies raw sensor arrays
++and calibration metadata instead of the benchmark's map/flow file loaders.
++Validate this adaptation separately from official benchmark reproduction.
++
+ Use this guide when reading, explaining, or changing this repository. Start with the [README](README.md) for installation, data preparation, available assets, and training/evaluation commands.
+ 
+ `AGENTS_public.md` is an explicit public guide, not a universally auto-discovered filename. When starting an AI coding assistant on a fresh clone, ask it to **read `AGENTS_public.md` before working**, or configure the assistant to load it. All paths below are relative to the repository root.
+diff --git a/projects/CMT/mmdet3d_plugin/models/dense_heads/cmt_head.py b/projects/CMT/mmdet3d_plugin/models/dense_heads/cmt_head.py
+index 1204bc0..9bb615f 100644
+--- a/projects/CMT/mmdet3d_plugin/models/dense_heads/cmt_head.py
++++ b/projects/CMT/mmdet3d_plugin/models/dense_heads/cmt_head.py
+@@ -736,13 +736,13 @@ class CmtHead(BaseModule):
+             gt_flow_list = []
+             pts_in_boxes_list = []
+             flow_coords_pe_list = []
+-            for img_meta in img_metas:
++            for img_meta in img_metas if self.training else []:
+                 gt_flow_list.append(torch.from_numpy(img_meta['gt_flow_async2sync']).to(device))
+                 # print('shape:', img_meta['gt_flow_async2sync'].shape)
+                 pts_in_boxes_list.append(torch.from_numpy(img_meta['pts_in_boxes_async']).to(device))
+                 # print('shape:', img_meta['pts_in_boxes_async'].shape)
+                 # print(self.pc_range)
+-            if self.learned_temporal_bev_warping == 'vel_with_loss' or self.learned_temporal_bev_warping == 'motion_with_loss':
++            if self.training and self.learned_temporal_bev_warping in ('vel_with_loss', 'motion_with_loss'):
+                 flow_voxel_info_list, flow_pseudoimage_batch = self.flow_embedder(pts_in_boxes_list, gt_flow_list)
+             else:
+                 flow_voxel_info_list, flow_pseudoimage_batch = None, torch.zeros(bs, 3, H, W).to(device)

@@ -1,0 +1,32 @@
+parking_bev:
+  ros__parameters:
+    use_sim_time: false
+    # Fill with the isolated Python interpreter and absolute worker.py path.
+    worker_command: ''
+    worker_endpoint: ''
+    packet_directory: ''
+    lidar_topic: /sensing/lidar/points
+    # CMT order: FRONT, FRONT_RIGHT, FRONT_LEFT, BACK, BACK_LEFT, BACK_RIGHT.
+    camera_topics:
+      - /sensing/camera/cam_front/image_rect
+      - /sensing/camera/cam_front_right/image_rect
+      - /sensing/camera/cam_front_left/image_rect
+      - /sensing/camera/cam_back/image_rect
+      - /sensing/camera/cam_back_left/image_rect
+      - /sensing/camera/cam_back_right/image_rect
+    camera_info_topics:
+      - /sensing/camera/cam_front/camera_info
+      - /sensing/camera/cam_front_right/camera_info
+      - /sensing/camera/cam_front_left/camera_info
+      - /sensing/camera/cam_back/camera_info
+      - /sensing/camera/cam_back_left/camera_info
+      - /sensing/camera/cam_back_right/camera_info
+    ego_frame: base_link
+    fixed_frame: odom
+    max_delay_s: 0.6
+    max_camera_skew_s: 0.08
+    max_input_age_s: 1.0
+    worker_timeout_s: 60.0
+    images_rectified: true
+    intensity_scale: 1.0
+    history_scans: 10

@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/tudelft-iv/AsyncBEV.git",
+  "revision": "c51ced190a8095cc1723b9f7aee08c39f1bc482e",
+  "checkpoint": "cmt_asyncbev_lidar_epoch12.pth",
+  "checkpoint_sha256": "324986141a3628c5c7c38209da186dd9dbed49847a29d2c043bf145e2d142bfd",
+  "checkpoint_size_bytes": 440052953,
+  "checkpoint_url": "https://surfdrive.surf.nl/public.php/dav/files/3zPR66WtM3QJQbS/?accept=zip",
+  "config": "projects/CMT/configs/inference/cmt_asyncbev_lidar_0.py"
+}

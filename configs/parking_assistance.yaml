@@ -1,0 +1,24 @@
+vehicle:
+  # Example only. Origin at body center; x forward, y left.
+  profile_name: example_passenger_car
+  length_m: 4.7
+  width_m: 1.95
+  wheelbase_m: 2.8
+  rear_axle_x_m: -1.35
+
+parking:
+  horizon_s: 3.0
+  step_s: 0.1
+  safety_margin_m: 0.25
+  watch_gap_m: 0.8
+  caution_gap_m: 0.45
+  stop_gap_m: 0.15
+  max_speed_mps: 1.4
+  max_steering_rad: 0.65
+  max_perception_age_s: 0.5
+  max_vehicle_age_s: 0.3
+  max_object_missed_s: 0.2
+  min_score: 0.3
+  min_track_hits: 2
+  roi_m: 12.0
+  max_prediction_displacement_m: 0.1

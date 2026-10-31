@@ -1,0 +1,12 @@
+parking_assistance:
+  ros__parameters:
+    use_sim_time: false
+    tracks_topic: /parking_bev/track_states
+    # Feed measured vehicle feedback via an adapter, not a drive command topic.
+    vehicle_state_topic: /vehicle/measured_drive
+    ego_frame: base_link
+    fixed_frame: odom
+    update_hz: 10.0
+    image_hz: 3.0
+    publish_image: true
+    font_path: ''

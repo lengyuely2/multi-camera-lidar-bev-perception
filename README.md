@@ -1,20 +1,45 @@
-# Multi-Camera, LiDAR, and Radar BEV Perception for Autonomous Driving
+# Multi-Camera, LiDAR, and Radar BEV Perception for Autonomous Parking
 
-This repository contains an offline autonomous-driving perception prototype with
-three connected modules:
+This repository contains a parking-focused perception and assistance prototype
+with offline demonstrations and ROS 2 integration:
 
 ```text
-BEV Perception -> World Prediction -> Semantic Simulation / Visualization
+Multi-Camera + LiDAR -> BEV Detection -> Tracking
+                                        |-> Parking Assistance / ROS 2
+                                        |-> World Prediction / Semantic Visualization
 ```
 
 The project is useful for MyRide-style perception prototyping, demonstration,
 and future VLA/world-model experiments. It is not a real-vehicle safety
 controller and must not be used for road-vehicle control.
 
+## 2026-10-31 升级内容
+
+项目新增 **CMT + AsyncBEV 感知后端、ROS 2 接口和停车周边风险提示**，保留原
+BEVFusion 作为对照。停车应用使用可配置的示例车型，支持车身间距、倒车与转向
+扫掠区域、行人接近提示，以及数据过期状态。
+
+| 新增内容 | 当前验证情况 | 说明 |
+|---|---|---|
+| CMT + AsyncBEV | RTX 4070 Laptop 上真实传感器样本推理成功 | 六路相机 + LiDAR，部署推理不使用目标标注或真值流场 |
+| ROS 2 接入 | Ubuntu 22.04 / Humble 实际发布与订阅检查通过 | 检测、跟踪、速度快照、RViz 标记和延迟诊断 |
+| 停车感知提示 | 四种合成场景与五项 ROS 状态检查通过 | 示例车长 4.70 m、车宽 1.95 m、轴距 2.80 m，可修改 |
+| 测试 | **57 passed** | 覆盖坐标/时间、IPC、停车几何和过期处理 |
+
+当前完整感知链路延迟约 **1.4～1.9 秒**，超过停车节点默认的 **0.5 秒**感知时效
+门限，因此会显示“感知已过期”。本次验证表明代码与数据链路已接通，尚未完成
+模型提速、实车标定或真实停车性能验证。
+
+- [停车功能、车型配置与 ROS 启动](docs/PARKING_ASSISTANCE.md)
+- [AsyncBEV 安装、权重准备与推理](docs/ASYNCBEV_ROS2.md)
+- [验证摘要](docs/validation/2026-10-31-upgrade.json)
+
 ## Demo Videos
 
 | Module | Preview | Video |
 |---|---|---|
+| Parking Assistance — synthetic parking scenarios | ![Parking turning envelope](docs/images/parking-turning-corner.png) | [parking-assistance.mp4](docs/videos/parking-assistance.mp4) |
+| CMT + AsyncBEV — real nuScenes inputs, 3-frame preview | ![AsyncBEV semantic preview](docs/images/asyncbev-semantic-preview.jpg) | [asyncbev-semantic-preview.mp4](docs/videos/asyncbev-semantic-preview.mp4) |
 | Camera BEV / BEV Perception | ![Camera BEV](docs/images/camera-bev-semantic-style.jpg) | [camera-bev-semantic-style.mp4](docs/videos/camera-bev-semantic-style.mp4) |
 | Camera+LiDAR BEV | ![Camera LiDAR BEV](docs/images/synthetic-camera-lidar-bev.jpg) | [synthetic-camera-lidar-bev.mp4](docs/videos/synthetic-camera-lidar-bev.mp4) |
 | World Prediction | ![World Model Lite](docs/images/world-model-lite-stabilized.jpg) | [world-model-lite-stabilized.mp4](docs/videos/world-model-lite-stabilized.mp4) |
@@ -22,6 +47,42 @@ controller and must not be used for road-vehicle control.
 
 For a feature-by-feature code map and runtime-flow explanation, see
 [docs/CODE_MAP.md](docs/CODE_MAP.md).
+
+## AsyncBEV And ROS 2 Integration
+
+The project now includes an isolated CMT + AsyncBEV deployment worker, pinned
+upstream source/checkpoint preparation, label-free nuScenes sensor input, and a
+ROS 2 package with detection, tracking, RViz markers and latency diagnostics.
+See [docs/ASYNCBEV_ROS2.md](docs/ASYNCBEV_ROS2.md) for setup, commands and validation
+status. The existing BEVFusion environment and demos remain available.
+
+The AsyncBEV deployment patch removes supervision-only flow-label reads from
+evaluation. This is a deployment adaptation, not an official reproduction of
+paper benchmark metrics. Real-sensor calibration and deployment latency still
+need validation on the intended hardware and sensor arrangement.
+
+## Parking Assistance
+
+The parking module adds configurable vehicle geometry, forward/reverse swept
+footprints, oriented-box body clearance, pedestrian/obstacle advisories, and
+explicit stale-data states. The independent ROS 2 parking node consumes tracking
+snapshots and measured vehicle feedback and publishes a Chinese BEV dashboard,
+advisories and RViz envelopes. See [docs/PARKING_ASSISTANCE.md](docs/PARKING_ASSISTANCE.md).
+
+| Reverse pedestrian approach — synthetic | Perception expired — synthetic |
+|---|---|
+| ![Reverse pedestrian approach](docs/images/parking-reverse-pedestrian.png) | ![Expired perception state](docs/images/parking-stale-perception.png) |
+
+Run the synthetic parking examples:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\demo_parking_assistance.py
+```
+
+Outputs are under `output/parking_assistance/`. The sample car dimensions are
+examples; empty detection regions are not verified free space. The current
+AsyncBEV latency exceeds the parking node's default freshness threshold and is
+reported as stale rather than treated as a current parking observation.
 
 ## Module 1: BEV Perception
 
@@ -409,7 +470,10 @@ src/parking_bev/bev/            BEV projection and BEV visual compositing
 src/parking_bev/perception/     Prediction loading and detection diagnostics
 src/parking_bev/tracking/       Temporal tracking, identity metrics, and appearance features
 src/parking_bev/world/          Short-horizon world prediction
+src/parking_bev/parking/        Parking geometry, clearance and advisory states
 src/parking_bev/visualization/  Metric BEV and semantic scene rendering
+integrations/asyncbev/          Pinned model integration, patch and setup helpers
+ros2/parking_bev_ros/           ROS 2 perception and independent parking nodes
 tests/                Unit tests
 output/               Generated local artifacts, ignored by Git
 data/                 External datasets and checkpoints, ignored by Git
@@ -432,5 +496,5 @@ The current checked-in version was validated with:
 Expected test result:
 
 ```text
-25 passed
+57 passed
 ```

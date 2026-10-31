@@ -32,6 +32,8 @@ class TrackSnapshot:
     hits: int
     missed: int
     history_global: np.ndarray
+    z_global: float = 0.0
+    last_measurement_timestamp_s: float | None = None
 
 
 @dataclass
@@ -49,6 +51,7 @@ class _Track:
     hits: int = 1
     missed: int = 0
     history: list[np.ndarray] = field(default_factory=list)
+    z_global: float = 0.0
 
 
 class TimestampAwareTracker:
@@ -175,6 +178,8 @@ class TimestampAwareTracker:
                 norm = np.linalg.norm(blended)
                 track.appearance = blended / norm if norm > 0 else track.appearance
         track.hits += 1
+        if len(measurement.position_global) >= 3:
+            track.z_global = float(measurement.position_global[2])
         track.missed = 0
         track.last_measurement_timestamp_s = track.last_timestamp_s
         self._append_history(track)
@@ -193,6 +198,7 @@ class TimestampAwareTracker:
             last_measurement_timestamp_s=timestamp_s,
             appearance=measurement.appearance.copy() if measurement.appearance is not None else None,
             history=[state[:2].copy()],
+            z_global=float(measurement.position_global[2]) if len(measurement.position_global) >= 3 else 0.0,
         )
         self._next_id += 1
         return track
@@ -207,6 +213,8 @@ class TimestampAwareTracker:
             track.track_id, track.class_name, track.score,
             track.state[:2].copy(), track.state[2:].copy(), track.size_wlh.copy(),
             track.yaw_global, track.hits, track.missed, np.asarray(track.history).copy(),
+            track.z_global,
+            track.last_measurement_timestamp_s,
         )
 
     @staticmethod

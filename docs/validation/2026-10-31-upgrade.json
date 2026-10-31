@@ -1,0 +1,80 @@
+{
+  "validation_date": "2026-10-31",
+  "scope": "Local deployment and integration checks, not an accuracy benchmark or real-vehicle validation",
+  "hardware": "NVIDIA GeForce RTX 4070 Laptop GPU, 8 GiB",
+  "ros_environment": "Ubuntu 22.04 / ROS 2 Humble",
+  "model": {
+    "name": "CMT + AsyncBEV, label-free deployment adaptation",
+    "upstream_revision": "c51ced190a8095cc1723b9f7aee08c39f1bc482e",
+    "checkpoint_sha256": "324986141a3628c5c7c38209da186dd9dbed49847a29d2c043bf145e2d142bfd",
+    "dataset": "nuScenes v1.0-mini",
+    "scene": "scene-0061",
+    "frame_count": 3,
+    "detections_per_frame": [
+      84,
+      89,
+      88
+    ],
+    "model_seconds_per_frame": [
+      0.8316890899999976,
+      0.7700510729999905,
+      0.8365345379999951
+    ],
+    "mean_model_seconds": 0.8127582336666611,
+    "first_frame_peak_allocated_tensor_memory_gib": 4.103003978729248,
+    "timing_note": "Model timing excludes complete input preprocessing and ROS pipeline latency."
+  },
+  "parking_synthetic_examples": {
+    "synthetic_inputs": true,
+    "vehicle": {
+      "profile_name": "example_passenger_car",
+      "length_m": 4.7,
+      "width_m": 1.95,
+      "wheelbase_m": 2.8,
+      "rear_axle_x_m": -1.35
+    },
+    "scenarios": [
+      "reverse_pedestrian",
+      "turning_corner",
+      "side_clearance",
+      "stale_perception"
+    ]
+  },
+  "ros_parking_synthetic_checks": {
+    "synthetic_inputs": true,
+    "passed_cases": [
+      "turning_envelope",
+      "side_gap",
+      "stale_perception",
+      "stale_vehicle",
+      "invalid_input"
+    ],
+    "received_reports": 14,
+    "received_images": 3
+  },
+  "real_model_ros_integration": {
+    "input": "Repeated recorded sensor packet, not real-time vehicle capture",
+    "detection_messages": 2,
+    "track_messages": 2,
+    "track_state_messages": 2,
+    "parking_statuses": [
+      "missing_perception",
+      "stale_perception"
+    ],
+    "sensor_to_output_seconds": [
+      1.7176973819732666,
+      1.546032428741455
+    ],
+    "diagnostic_levels": [
+      0,
+      0
+    ],
+    "default_parking_perception_max_age_s": 0.5
+  },
+  "limitations": [
+    "No official nuScenes mAP/NDS reproduction or accuracy improvement claim.",
+    "Current model pipeline is slower than the default parking freshness threshold.",
+    "Example car geometry and synthetic parking cases are not real-vehicle measurements.",
+    "Detected object boxes do not establish free space, parking spaces, curbs, or unknown-obstacle coverage."
+  ]
+}
