@@ -1,0 +1,314 @@
+{
+  "model": "CMT+AsyncBEV",
+  "scene": "scene-0061",
+  "offline_replay": true,
+  "display_language": "en",
+  "synthetic_inputs": false,
+  "annotation_boxes_used": false,
+  "point_semantics": "predicted_box_membership_only",
+  "rgb": "calibrated camera projection onto real LiDAR points",
+  "focus": {
+    "track_id": 13,
+    "screenshot_index": 38,
+    "heading_change_deg": 71.2,
+    "window_start_index": 30,
+    "turning_candidate": true,
+    "selection": "offline predicted world-heading change; not a learned turn label"
+  },
+  "keyframes": 39,
+  "video_fps": 10,
+  "written_frames": 196,
+  "screenshot_keyframe": 34,
+  "video_codec": "H.264",
+  "duration_s": 19.6,
+  "playback": "hold recorded keyframes; no interpolation",
+  "score_threshold": 0.35,
+  "frames": [
+    {
+      "sample_token": "ca9a282c9e77460f8360f564131a8af5",
+      "timestamp_s": 1532402927.647951,
+      "point_count": 24549,
+      "prediction_count": 32,
+      "inference_seconds": 1.5240504089999973
+    },
+    {
+      "sample_token": "39586f9d59004284a7114a68825e8eec",
+      "timestamp_s": 1532402928.147847,
+      "point_count": 99434,
+      "prediction_count": 44,
+      "inference_seconds": 0.993585367999998
+    },
+    {
+      "sample_token": "356d81f38dd9473ba590f39e266f54e5",
+      "timestamp_s": 1532402928.698048,
+      "point_count": 99332,
+      "prediction_count": 45,
+      "inference_seconds": 0.8264541539999968
+    },
+    {
+      "sample_token": "e0845f5322254dafadbbed75aaa07969",
+      "timestamp_s": 1532402929.197353,
+      "point_count": 99558,
+      "prediction_count": 42,
+      "inference_seconds": 0.9100442229999999
+    },
+    {
+      "sample_token": "c923fe08b2ff4e27975d2bf30934383b",
+      "timestamp_s": 1532402929.697797,
+      "point_count": 99455,
+      "prediction_count": 47,
+      "inference_seconds": 0.9553459539999949
+    },
+    {
+      "sample_token": "f1e3d9d08f044c439ce86a2d6fcca57b",
+      "timestamp_s": 1532402930.152601,
+      "point_count": 99417,
+      "prediction_count": 52,
+      "inference_seconds": 0.9007282200000049
+    },
+    {
+      "sample_token": "4f545737bf3347fbbc9af60b0be9a963",
+      "timestamp_s": 1532402930.648325,
+      "point_count": 98914,
+      "prediction_count": 53,
+      "inference_seconds": 0.919411060999991
+    },
+    {
+      "sample_token": "7626dde27d604ac28a0240bdd54eba7a",
+      "timestamp_s": 1532402931.198511,
+      "point_count": 98597,
+      "prediction_count": 57,
+      "inference_seconds": 0.9633324960000067
+    },
+    {
+      "sample_token": "be99ffc878b24aca8956bbb4e0f97d0c",
+      "timestamp_s": 1532402931.697833,
+      "point_count": 98051,
+      "prediction_count": 59,
+      "inference_seconds": 0.8711346460000016
+    },
+    {
+      "sample_token": "9813c23a5f1448b09bb7910fea9baf20",
+      "timestamp_s": 1532402932.197715,
+      "point_count": 97838,
+      "prediction_count": 64,
+      "inference_seconds": 1.32113872299999
+    },
+    {
+      "sample_token": "023c4df2d451409881d8e6ea82f14704",
+      "timestamp_s": 1532402932.647284,
+      "point_count": 97454,
+      "prediction_count": 62,
+      "inference_seconds": 1.399272976000006
+    },
+    {
+      "sample_token": "c235638ed66145988d17f9d0601923f2",
+      "timestamp_s": 1532402933.146604,
+      "point_count": 97189,
+      "prediction_count": 72,
+      "inference_seconds": 1.539294747999989
+    },
+    {
+      "sample_token": "bc3c8a953f6b4dcdb77b521d89f3d9d5",
+      "timestamp_s": 1532402933.646462,
+      "point_count": 96772,
+      "prediction_count": 75,
+      "inference_seconds": 1.3522635709999946
+    },
+    {
+      "sample_token": "1e3d79dae62742a0ad64c91679863358",
+      "timestamp_s": 1532402934.146351,
+      "point_count": 95690,
+      "prediction_count": 77,
+      "inference_seconds": 1.4994299929999926
+    },
+    {
+      "sample_token": "2afb9d32310e4546a71cbe432911eca2",
+      "timestamp_s": 1532402934.696555,
+      "point_count": 95721,
+      "prediction_count": 77,
+      "inference_seconds": 1.028098165000003
+    },
+    {
+      "sample_token": "cd21dbfc3bd749c7b10a5c42562e0c42",
+      "timestamp_s": 1532402935.197541,
+      "point_count": 95665,
+      "prediction_count": 76,
+      "inference_seconds": 1.3785279759999867
+    },
+    {
+      "sample_token": "88449a5cb1644a199c1c11f6ac034867",
+      "timestamp_s": 1532402935.697945,
+      "point_count": 95533,
+      "prediction_count": 79,
+      "inference_seconds": 1.3615797180000015
+    },
+    {
+      "sample_token": "2ff86dc19c4644a1a88ce5ba848f56e5",
+      "timestamp_s": 1532402936.198962,
+      "point_count": 96043,
+      "prediction_count": 74,
+      "inference_seconds": 1.1246141679999937
+    },
+    {
+      "sample_token": "bf2938e43c6f487497cda76b51bfc406",
+      "timestamp_s": 1532402936.699359,
+      "point_count": 96198,
+      "prediction_count": 68,
+      "inference_seconds": 1.3373845950000032
+    },
+    {
+      "sample_token": "b26e791522294bec90f86fd72226e35c",
+      "timestamp_s": 1532402937.198682,
+      "point_count": 95820,
+      "prediction_count": 72,
+      "inference_seconds": 1.0632999619999879
+    },
+    {
+      "sample_token": "c844bf5a9f2243ff8f4bf2c85fe218ff",
+      "timestamp_s": 1532402937.698,
+      "point_count": 95982,
+      "prediction_count": 67,
+      "inference_seconds": 1.1661017290000046
+    },
+    {
+      "sample_token": "fedfb3a6cb804635a0f47143f9ca8d6f",
+      "timestamp_s": 1532402938.197897,
+      "point_count": 95625,
+      "prediction_count": 68,
+      "inference_seconds": 1.5344505160000068
+    },
+    {
+      "sample_token": "965f6af5a92449348409029a5f048a38",
+      "timestamp_s": 1532402938.647444,
+      "point_count": 95623,
+      "prediction_count": 62,
+      "inference_seconds": 1.4186979199999996
+    },
+    {
+      "sample_token": "4711bcd34644420da8bc77163431888e",
+      "timestamp_s": 1532402939.147334,
+      "point_count": 96676,
+      "prediction_count": 58,
+      "inference_seconds": 1.263582618000001
+    },
+    {
+      "sample_token": "a34fabc7aa674713b71f98ec541eb2d4",
+      "timestamp_s": 1532402939.697511,
+      "point_count": 97884,
+      "prediction_count": 48,
+      "inference_seconds": 1.5299643590000045
+    },
+    {
+      "sample_token": "c78067571d104caba7c568a847d56971",
+      "timestamp_s": 1532402940.197958,
+      "point_count": 97617,
+      "prediction_count": 52,
+      "inference_seconds": 1.439997727000005
+    },
+    {
+      "sample_token": "4246e57f018745c9b2bc68feb3d71b58",
+      "timestamp_s": 1532402940.797343,
+      "point_count": 98108,
+      "prediction_count": 47,
+      "inference_seconds": 1.732959231999999
+    },
+    {
+      "sample_token": "a7acb150914b40bdad9a2dc4e657cbf9",
+      "timestamp_s": 1532402941.297218,
+      "point_count": 99205,
+      "prediction_count": 51,
+      "inference_seconds": 2.4840155400000015
+    },
+    {
+      "sample_token": "0cd661df01aa40c3bb3a773ba86f753a",
+      "timestamp_s": 1532402941.797653,
+      "point_count": 99608,
+      "prediction_count": 54,
+      "inference_seconds": 2.054789894999999
+    },
+    {
+      "sample_token": "378a3a3e9af346308ab9dff8ced46d9c",
+      "timestamp_s": 1532402942.197463,
+      "point_count": 100033,
+      "prediction_count": 50,
+      "inference_seconds": 1.2880566400000077
+    },
+    {
+      "sample_token": "eef55c3b48f34d949959b45130ee293a",
+      "timestamp_s": 1532402942.69787,
+      "point_count": 100175,
+      "prediction_count": 49,
+      "inference_seconds": 2.1555470719999903
+    },
+    {
+      "sample_token": "5fda58ee3ae44ab9b4bbac7a2de66c27",
+      "timestamp_s": 1532402943.197769,
+      "point_count": 100695,
+      "prediction_count": 57,
+      "inference_seconds": 1.3112942239999938
+    },
+    {
+      "sample_token": "919e3c4cec934168a3152077a9adcbea",
+      "timestamp_s": 1532402943.697655,
+      "point_count": 100360,
+      "prediction_count": 59,
+      "inference_seconds": 1.410868851999993
+    },
+    {
+      "sample_token": "b73152cab88f49d9ba195da81fde1809",
+      "timestamp_s": 1532402944.198088,
+      "point_count": 100664,
+      "prediction_count": 59,
+      "inference_seconds": 1.4088968819999934
+    },
+    {
+      "sample_token": "6aa6fa91e0d1492e812eb7e57c47df6e",
+      "timestamp_s": 1532402944.697931,
+      "point_count": 100900,
+      "prediction_count": 59,
+      "inference_seconds": 1.6775874350000208
+    },
+    {
+      "sample_token": "aa581aac963a4fad848ac11fe66e8637",
+      "timestamp_s": 1532402945.197276,
+      "point_count": 100863,
+      "prediction_count": 59,
+      "inference_seconds": 1.3417194669999901
+    },
+    {
+      "sample_token": "67e5f88901214f3aa03d68e028185e22",
+      "timestamp_s": 1532402945.697148,
+      "point_count": 100724,
+      "prediction_count": 64,
+      "inference_seconds": 1.421862544999982
+    },
+    {
+      "sample_token": "29e056fc277543c9bc42310b122c640e",
+      "timestamp_s": 1532402946.297085,
+      "point_count": 100353,
+      "prediction_count": 61,
+      "inference_seconds": 1.4993570050000073
+    },
+    {
+      "sample_token": "ed5fc18c31904f96a8f0dbb99ff069c0",
+      "timestamp_s": 1532402946.797517,
+      "point_count": 100912,
+      "prediction_count": 63,
+      "inference_seconds": 1.3044871099999966
+    }
+  ],
+  "inference_summary": {
+    "frames": 39,
+    "mean_inference_seconds": 1.3516212280512805,
+    "p95_inference_seconds": 2.0648656126999985
+  },
+  "video_validation": {
+    "decoded_frames": 196,
+    "size": [
+      1920,
+      1080
+    ],
+    "fps": 10.0
+  }
+}

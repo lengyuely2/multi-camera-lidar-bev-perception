@@ -113,6 +113,7 @@ data/                 External datasets and checkpoints, ignored by Git
 |---|---|
 | `src/parking_bev/visualization/semantic_3d.py` | Stylized semantic driving-scene renderer, HUD, track stabilization, and future-path overlay. |
 | `scripts/render_semantic_drive.py` | Main renderer for semantic surround, camera-BEV-style, and world-model videos. |
+| `scripts/render_perception_showcase.py` | Recorded cameras, calibrated RGB point cloud, predicted-box colors and BEV tracking in one synchronized showcase. See `docs/PERCEPTION_SHOWCASE.md`. |
 | `scripts/render_bevfusion_predictions.py` | One-frame BEVFusion prediction renderer. |
 | `scripts/render_nuscenes_video.py` | nuScenes input preview video renderer. |
 | `scripts/preview_nuscenes.py` | Single-frame nuScenes preview renderer. |

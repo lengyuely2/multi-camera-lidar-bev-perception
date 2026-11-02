@@ -13,6 +13,32 @@ The project is useful for MyRide-style perception prototyping, demonstration,
 and future VLA/world-model experiments. It is not a real-vehicle safety
 controller and must not be used for road-vehicle control.
 
+## Featured Demo: Multi-Sensor BEV Perception
+
+[![Camera, point cloud, 3D detection and BEV tracking — animated offline replay](docs/images/perception-showcase.gif)](docs/videos/perception-showcase.mp4)
+
+**[Watch the full 1080p video (19.6 seconds)](docs/videos/perception-showcase.mp4)**
+ · [Full-resolution cover](docs/images/perception-showcase.png)
+ · [Reproduce the demo](docs/PERCEPTION_SHOWCASE.md)
+
+Real nuScenes recordings and CMT + AsyncBEV predictions, with English overlays.
+The yellow **#13** links the same vehicle across camera views and BEV tracking.
+This is offline replay; the video frame rate does not represent model throughput.
+Point colors come from camera projection or predicted-box membership, not semantic segmentation.
+
+Project highlights:
+
+- **Spatiotemporal consistency:** sensor calibration, timestamp checks, TF transforms and ego-motion compensation.
+- **ROS 2 integration:** isolated GPU inference, detection/tracking topics, RViz markers and latency diagnostics.
+- **Parking geometry:** configurable vehicle dimensions, body clearance and swept-footprint prediction for forward/reverse turns.
+- **Freshness checks:** bounded latest-frame processing and explicit stale/unknown states.
+
+The ROS 2 data path has been checked separately with recorded inputs; parking
+logic has been tested on synthetic cases. Runtime optimization and real-vehicle
+validation remain future work. The neural backbones and pretrained weights are
+from the upstream projects; this repository contributes deployment adaptation,
+integration, application logic and visualization.
+
 ## 2026-10-31 升级内容
 
 项目新增 **CMT + AsyncBEV 感知后端、ROS 2 接口和停车周边风险提示**，保留原
@@ -36,8 +62,12 @@ BEVFusion 作为对照。停车应用使用可配置的示例车型，支持车�
 
 ## Demo Videos
 
+新增 [多画面感知展示与复现说明](docs/PERCEPTION_SHOWCASE.md)：三路相机、真实彩色点云、
+AsyncBEV 三维检测和 BEV 跟踪并排显示，黄色标记关联同一车辆；明确标注离线回放。
+
 | Module | Preview | Video |
 |---|---|---|
+| CMT + AsyncBEV — cameras, point cloud, detections and tracking; offline replay | ![Multi-panel perception showcase](docs/images/perception-showcase.png) | [perception-showcase.mp4](docs/videos/perception-showcase.mp4) |
 | Parking Assistance — synthetic parking scenarios | ![Parking turning envelope](docs/images/parking-turning-corner.png) | [parking-assistance.mp4](docs/videos/parking-assistance.mp4) |
 | CMT + AsyncBEV — real nuScenes inputs, 3-frame preview | ![AsyncBEV semantic preview](docs/images/asyncbev-semantic-preview.jpg) | [asyncbev-semantic-preview.mp4](docs/videos/asyncbev-semantic-preview.mp4) |
 | Camera BEV / BEV Perception | ![Camera BEV](docs/images/camera-bev-semantic-style.jpg) | [camera-bev-semantic-style.mp4](docs/videos/camera-bev-semantic-style.mp4) |
